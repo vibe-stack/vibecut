@@ -28,12 +28,14 @@ function ImageItem({ el }: { el: ImageElement }) {
 }
 
 function computeVideoTime(el: VideoElement, frame: number, fps: number) {
+  // Map timeline frame to source frame considering speed and in/out.
+  // element.start/end are timeline frames; el.data.in/out are source frames (inclusive/out-exclusive semantics assumed)
+  if (frame < el.start || frame >= el.end) return null;
   const localFrames = frame - el.start; // frames since element start on timeline
-  if (localFrames < 0) return null;
   const speed = el.data.speed || 1;
   const sourceFrame = el.data.in + localFrames * speed;
-  if (sourceFrame > el.data.out) return null;
-  return sourceFrame / fps; // seconds into source
+  const clampedSource = Math.max(el.data.in, Math.min(sourceFrame, el.data.out));
+  return clampedSource / fps;
 }
 
 function VideoItem({ el, frame, fps, isPlaying }: { el: VideoElement; frame: number; fps: number; isPlaying: boolean }) {
@@ -58,36 +60,34 @@ function VideoItem({ el, frame, fps, isPlaying }: { el: VideoElement; frame: num
     const video = (videoTexture as any)?.image as HTMLVideoElement | undefined;
     if (!video) return;
     const desired = computeVideoTime(el, frame, fps);
+    // Hide early if out of range
     if (desired == null) {
-      // Element not visible at this time
-      if (!video.paused) {
-        try { video.pause(); } catch {}
-      }
+      try { if (!video.paused) video.pause(); } catch {}
       return;
     }
     const drift = Math.abs(video.currentTime - desired);
     if (isPlaying) {
-      // Nudge if drift accumulates
-      if (drift > 0.05) {
+      // Reduce excessive seeking to avoid visible flashes
+      if (drift > 0.12) {
         try { video.currentTime = desired; } catch {}
       }
+      // Play if paused
       if (video.paused) {
-        // Attempt to play; ignore gesture errors (muted inline should work)
         void video.play().catch(() => {});
       }
     } else {
-      // Pause and seek exactly
-      try {
-        if (drift > 0.01) video.currentTime = desired;
-        if (!video.paused) video.pause();
-      } catch {}
+      // When paused, ensure exact frame without causing repeat seeks
+      if (drift > 0.005) {
+        try { video.currentTime = desired; } catch {}
+      }
+      try { if (!video.paused) video.pause(); } catch {}
     }
   }, [videoTexture, frame, fps, isPlaying, el]);
 
   return (
     <mesh>
       <planeGeometry args={fitScale().slice(0, 2) as unknown as [number, number]} />
-      <meshBasicMaterial map={videoTexture as any} toneMapped={false} />
+  <meshBasicMaterial map={videoTexture as any} toneMapped={false} />
     </mesh>
   );
 }

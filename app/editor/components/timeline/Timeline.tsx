@@ -1,16 +1,8 @@
-import { useMemo, useRef, useState, useCallback } from "react";
+import { useMemo, useRef, useCallback } from "react";
 import { useSnapshot } from "valtio";
 import { EditorActions, editorStore, getElementById } from "../../state/editor.store";
 import { framesToPx } from "../../utils/time";
 import { usePlaybackTime } from "../../hooks/usePlaybackTime";
-import {
-  DndContext,
-  useSensor,
-  useSensors,
-  PointerSensor,
-} from "@dnd-kit/core";
-import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
-import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
 
 const ROW_H = 40;
 
@@ -70,25 +62,12 @@ function TrackRow({ trackId, kind }: TrackRowProps) {
     ? snap.mediaTracks.find((t) => t.id === trackId)
     : snap.audioTracks.find((t) => t.id === trackId)) as any;
   const { fps, pixelsPerSecond } = snap.timeline;
-  const sensors = useSensors(useSensor(PointerSensor));
-  const [draggingId, setDraggingId] = useState<string | null>(null);
 
   if (!track) return null;
   return (
     <div className="relative border-b border-gray-900" style={{ height: ROW_H }}>
-      <DndContext
-        sensors={sensors}
-        modifiers={[restrictToHorizontalAxis]}
-        onDragStart={({ active }: DragStartEvent) => setDraggingId(String(active.id))}
-        onDragEnd={({ active, delta }: DragEndEvent) => {
-          setDraggingId(null);
-          const id = String(active.id);
-          const deltaFrames = Math.round((delta.x / pixelsPerSecond) * fps);
-          if (deltaFrames !== 0) EditorActions.moveElement(id, deltaFrames);
-        }}
-      >
-        {/* Elements */}
-        {track.elements.map((el: any) => {
+      {/* Elements */}
+      {track.elements.map((el: any) => {
         const left = framesToPx(el.start, fps, pixelsPerSecond);
         const width = framesToPx(el.end - el.start, fps, pixelsPerSecond);
         const selected = snap.selection.elementId === el.id;
@@ -105,7 +84,7 @@ function TrackRow({ trackId, kind }: TrackRowProps) {
                   const move = (ev: PointerEvent) => {
                     const dx = ev.clientX - startX;
                     const df = Math.round((dx / pixelsPerSecond) * fps);
-                    EditorActions.resizeElementStart(el.id, df);
+                    EditorActions.setElementStartTo(el.id, origStart + df);
                   };
                   const up = () => {
                     window.removeEventListener("pointermove", move);
@@ -114,13 +93,31 @@ function TrackRow({ trackId, kind }: TrackRowProps) {
                   window.addEventListener("pointermove", move);
                   window.addEventListener("pointerup", up, { once: true });
                 }}
+                data-el-handle="start"
               />
               {/* Draggable body */}
               <div
                 id={el.id}
                 className={`absolute left-2 right-2 top-0 bottom-0 rounded-md ${color} ${selected ? "ring-2 ring-cyan-400" : ""} overflow-hidden text-ellipsis whitespace-nowrap px-2 text-xs flex items-center`}
-                onClick={() => EditorActions.selectElement(el.id)}
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  EditorActions.selectElement(el.id);
+                  const startX = e.clientX;
+                  const origStart = el.start;
+                  const move = (ev: PointerEvent) => {
+                    const dx = ev.clientX - startX;
+                    const df = Math.round((dx / pixelsPerSecond) * fps);
+                    EditorActions.moveElementTo(el.id, origStart + df);
+                  };
+                  const up = () => {
+                    window.removeEventListener("pointermove", move);
+                    window.removeEventListener("pointerup", up);
+                  };
+                  window.addEventListener("pointermove", move);
+                  window.addEventListener("pointerup", up, { once: true });
+                }}
                 style={{ touchAction: "none" }}
+                data-el-body="1"
               >
                 {el.type.toUpperCase()} {el.id}
               </div>
@@ -130,23 +127,24 @@ function TrackRow({ trackId, kind }: TrackRowProps) {
                 onPointerDown={(e) => {
                   e.preventDefault();
                   const startX = e.clientX;
+                  const origEnd = el.end;
                   const move = (ev: PointerEvent) => {
                     const dx = ev.clientX - startX;
                     const df = Math.round((dx / pixelsPerSecond) * fps);
-                    EditorActions.resizeElementEnd(el.id, df);
+                    EditorActions.setElementEndTo(el.id, origEnd + df);
                   };
                   const up = () => {
                     window.removeEventListener("pointermove", move);
                     window.removeEventListener("pointerup", up);
                   };
-                    window.addEventListener("pointermove", move);
-                    window.addEventListener("pointerup", up, { once: true });
+                  window.addEventListener("pointermove", move);
+                  window.addEventListener("pointerup", up, { once: true });
                 }}
+                data-el-handle="end"
               />
             </div>
         );
         })}
-      </DndContext>
     </div>
   );
 }
@@ -155,11 +153,16 @@ export function Timeline() {
   const containerRef = useRef<HTMLDivElement>(null);
   const snap = useSnapshot(editorStore);
   const { mediaTracks, audioTracks } = snap;
+  const onBackgroundPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-el-body="1"], [data-el-handle="start"], [data-el-handle="end"]')) return;
+    EditorActions.selectElement(null);
+  };
 
   return (
     <div className="h-full flex flex-col">
       <TimeRuler />
-      <div ref={containerRef} className="flex-1 overflow-auto relative">
+  <div ref={containerRef} className="flex-1 overflow-auto relative" onPointerDown={onBackgroundPointerDown}>
         {/* Media section */}
         <div className="text-[11px] uppercase tracking-wide text-gray-400 px-2 py-1">General Media</div>
         {mediaTracks.map((t) => (

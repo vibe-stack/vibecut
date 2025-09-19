@@ -283,6 +283,52 @@ export const EditorActions = {
     };
     if (!apply(editorStore.mediaTracks)) apply(editorStore.audioTracks);
   },
+  setElementStartTo(id: string, newStart: number) {
+    const apply = <T extends AnyElement>(tracks: Track<T>[]) => {
+      for (const t of tracks) {
+        const el = t.elements.find((e) => e.id === id);
+        if (el) {
+          const clamped = Math.max(0, Math.min(newStart, el.end - 1));
+          el.start = clamped;
+          return true;
+        }
+      }
+      return false;
+    };
+    if (!apply(editorStore.mediaTracks)) apply(editorStore.audioTracks);
+  },
+  setElementEndTo(id: string, newEnd: number) {
+    const apply = <T extends AnyElement>(tracks: Track<T>[]) => {
+      for (const t of tracks) {
+        const el = t.elements.find((e) => e.id === id);
+        if (el) {
+          const max = editorStore.timeline.durationFrames;
+          const clamped = Math.max(el.start + 1, Math.min(newEnd, max));
+          el.end = clamped;
+          return true;
+        }
+      }
+      return false;
+    };
+    if (!apply(editorStore.mediaTracks)) apply(editorStore.audioTracks);
+  },
+  moveElementTo(id: string, newStart: number) {
+    const apply = <T extends AnyElement>(tracks: Track<T>[]) => {
+      for (const t of tracks) {
+        const el = t.elements.find((e) => e.id === id);
+        if (el) {
+          const len = el.end - el.start;
+          const maxStart = editorStore.timeline.durationFrames - len;
+          const clamped = Math.max(0, Math.min(newStart, maxStart));
+          el.start = clamped;
+          el.end = clamped + len;
+          return true;
+        }
+      }
+      return false;
+    };
+    if (!apply(editorStore.mediaTracks)) apply(editorStore.audioTracks);
+  },
 };
 
 export function getElementById(id: string | null): AnyElement | null {
