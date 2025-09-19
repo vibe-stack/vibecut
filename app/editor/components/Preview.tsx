@@ -16,9 +16,8 @@ extend(THREE as any)
 
 function Scene() {
     const snap = useSnapshot(editorStore);
-    const t = useMemo(() => snap.timeline.currentFrame / snap.timeline.fps, [
-        snap.timeline.currentFrame,
-        snap.timeline.fps,
+    const t = useMemo(() => snap.timeline.currentTimeMs / 1000, [
+        snap.timeline.currentTimeMs,
     ]);
 
     return (
@@ -49,7 +48,7 @@ export function Preview() {
                     return renderer
                 }} orthographic dpr={[1, 2]}>
                     <OrthographicCamera makeDefault position={[0, 0, 5]} zoom={300} />
-                    <PlaybackDriver durationSeconds={editorStore.timeline.durationFrames / editorStore.timeline.fps} />
+                    <PlaybackDriver durationSeconds={editorStore.timeline.durationMs / 1000} />
                     <Scene />
                 </Canvas>
             ) : (

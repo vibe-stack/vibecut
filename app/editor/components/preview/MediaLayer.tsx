@@ -5,8 +5,8 @@ import type { AnyElement, ImageElement, TextElement, VideoElement } from "../../
 import { editorStore } from "../../state/editor.store";
 import { usePlaybackTime } from "../../hooks/usePlaybackTime";
 
-function isVisible(el: { start: number; end: number }, frame: number) {
-  return frame >= el.start && frame < el.end;
+function isVisible(el: { start: number; end: number }, timeMs: number) {
+  return timeMs >= el.start && timeMs < el.end;
 }
 
 function fitScale(width = 1.6, height = 0.9): [number, number] {
@@ -27,19 +27,17 @@ function ImageItem({ el }: { el: ImageElement }) {
   return <Image url={el.data.src} scale={fitScale()} transparent toneMapped={false} />;
 }
 
-function computeVideoTime(el: VideoElement, frame: number, fps: number) {
-  // Map timeline frame to source time considering speed and in/out.
-  // element.start/end are timeline frames; el.data.in/out are source frames (inclusive/out-exclusive semantics assumed)
-  if (frame < el.start || frame >= el.end) return null;
-  const localFrames = frame - el.start; // frames since element start on timeline
+function computeVideoTime(el: VideoElement, timeMs: number) {
+  // Map timeline time to source time considering speed and in/out.
+  if (timeMs < el.start || timeMs >= el.end) return null;
+  const localTimeMs = timeMs - el.start; // milliseconds since element start
   const speed = el.data.speed || 1;
-  const sourceFrame = el.data.in + localFrames * speed;
-  const clampedSource = Math.max(el.data.in, Math.min(sourceFrame, el.data.out));
-  // Convert source frame to actual time in seconds
-  return clampedSource / fps;
+  const sourceTimeMs = el.data.in + localTimeMs * speed;
+  const clampedSource = Math.max(el.data.in, Math.min(sourceTimeMs, el.data.out));
+  return clampedSource / 1000; // Convert to seconds for video.currentTime
 }
 
-function VideoItem({ el, frame, fps, isPlaying }: { el: VideoElement; frame: number; fps: number; isPlaying: boolean }) {
+function VideoItem({ el, timeMs, isPlaying }: { el: VideoElement; timeMs: number; isPlaying: boolean }) {
   const videoReadyRef = useRef(false);
   const lastSeekTimeRef = useRef(0);
   
@@ -88,7 +86,7 @@ function VideoItem({ el, frame, fps, isPlaying }: { el: VideoElement; frame: num
     const video = (videoTexture as any)?.image as HTMLVideoElement | undefined;
     if (!video || !videoReadyRef.current) return;
     
-    const desired = computeVideoTime(el, frame, fps);
+    const desired = computeVideoTime(el, timeMs);
     // Hide early if out of range
     if (desired == null) {
       try { if (!video.paused) video.pause(); } catch {}
@@ -121,7 +119,7 @@ function VideoItem({ el, frame, fps, isPlaying }: { el: VideoElement; frame: num
       }
       try { if (!video.paused) video.pause(); } catch {}
     }
-  }, [videoTexture, frame, fps, isPlaying, el]);
+  }, [videoTexture, timeMs, isPlaying, el]);
 
   return (
     <mesh>
@@ -138,17 +136,16 @@ function VideoItem({ el, frame, fps, isPlaying }: { el: VideoElement; frame: num
 
 export function MediaLayer() {
   const snap = useSnapshot(editorStore);
-  const time = usePlaybackTime();
-  const frame = useMemo(() => Math.floor(time * snap.timeline.fps), [time, snap.timeline.fps]);
+  const timeMs = usePlaybackTime(); // Assumes usePlaybackTime returns milliseconds
 
   const visible = snap.mediaTracks
     .flatMap((t) => t.elements)
-    .filter((el) => isVisible(el, frame));
+    .filter((el) => isVisible(el, timeMs));
 
   return (
     <group>
       <Suspense fallback={null}>
-  {visible.map((el, i) => {
+        {visible.map((el, i) => {
           const z = 0.01 * i; // simple stacking
           if (el.type === "text") {
             return (
@@ -167,7 +164,7 @@ export function MediaLayer() {
           if (el.type === "video") {
             return (
               <group key={el.id} position={[0, 0, z]}>
-                <VideoItem el={el as unknown as VideoElement} frame={frame} fps={snap.timeline.fps} isPlaying={snap.isPlaying} />
+                <VideoItem el={el as unknown as VideoElement} timeMs={timeMs} isPlaying={snap.isPlaying} />
               </group>
             );
           }

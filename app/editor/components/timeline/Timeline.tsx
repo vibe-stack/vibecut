@@ -1,18 +1,17 @@
 import { useMemo, useRef, useCallback } from "react";
 import { useSnapshot } from "valtio";
 import { EditorActions, editorStore, getElementById } from "../../state/editor.store";
-import { framesToPx } from "../../utils/time";
+import { millisecondsToTimecode, millisecondsToPx } from "../../utils/time";
 import { usePlaybackTime } from "../../hooks/usePlaybackTime";
 
 const ROW_H = 40;
 
 function TimeRuler() {
   const snap = useSnapshot(editorStore);
-  const { fps, durationFrames, pixelsPerSecond } = snap.timeline;
-  const seconds = Math.ceil(durationFrames / fps);
+  const { durationMs, pixelsPerSecond } = snap.timeline;
+  const seconds = Math.ceil(durationMs / 1000);
   const marks = useMemo(() => new Array(seconds).fill(0).map((_, i) => i), [seconds]);
-  const time = usePlaybackTime();
-  const currentFrame = Math.floor(time * fps);
+  const timeMs = usePlaybackTime();
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const box = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const x = e.clientX - box.left;
@@ -43,7 +42,7 @@ function TimeRuler() {
         <div
           className="absolute top-0 bottom-0 w-[2px] bg-red-500"
           style={{
-            left: `${framesToPx(currentFrame, fps, pixelsPerSecond)}px`,
+            left: `${millisecondsToPx(timeMs, pixelsPerSecond)}px`,
           }}
         />
       </div>
@@ -61,15 +60,15 @@ function TrackRow({ trackId, kind }: TrackRowProps) {
   const track = (kind === "media"
     ? snap.mediaTracks.find((t) => t.id === trackId)
     : snap.audioTracks.find((t) => t.id === trackId)) as any;
-  const { fps, pixelsPerSecond } = snap.timeline;
+  const { pixelsPerSecond } = snap.timeline;
 
   if (!track) return null;
   return (
     <div className="relative border-b border-gray-900" style={{ height: ROW_H }}>
       {/* Elements */}
       {track.elements.map((el: any) => {
-        const left = framesToPx(el.start, fps, pixelsPerSecond);
-        const width = framesToPx(el.end - el.start, fps, pixelsPerSecond);
+        const left = millisecondsToPx(el.start, pixelsPerSecond);
+        const width = millisecondsToPx(el.end - el.start, pixelsPerSecond);
         const selected = snap.selection.elementId === el.id;
         const color = el.type === "audio" ? "bg-emerald-800" : el.type === "text" ? "bg-sky-800" : "bg-gray-700";
         return (
@@ -83,8 +82,8 @@ function TrackRow({ trackId, kind }: TrackRowProps) {
                   const origStart = el.start;
                   const move = (ev: PointerEvent) => {
                     const dx = ev.clientX - startX;
-                    const df = Math.round((dx / pixelsPerSecond) * fps);
-                    EditorActions.setElementStartTo(el.id, origStart + df);
+                    const dMs = Math.round((dx / pixelsPerSecond) * 1000);
+                    EditorActions.setElementStartTo(el.id, origStart + dMs);
                   };
                   const up = () => {
                     window.removeEventListener("pointermove", move);
@@ -106,8 +105,8 @@ function TrackRow({ trackId, kind }: TrackRowProps) {
                   const origStart = el.start;
                   const move = (ev: PointerEvent) => {
                     const dx = ev.clientX - startX;
-                    const df = Math.round((dx / pixelsPerSecond) * fps);
-                    EditorActions.moveElementTo(el.id, origStart + df);
+                    const dMs = Math.round((dx / pixelsPerSecond) * 1000);
+                    EditorActions.moveElementTo(el.id, origStart + dMs);
                   };
                   const up = () => {
                     window.removeEventListener("pointermove", move);
@@ -130,8 +129,8 @@ function TrackRow({ trackId, kind }: TrackRowProps) {
                   const origEnd = el.end;
                   const move = (ev: PointerEvent) => {
                     const dx = ev.clientX - startX;
-                    const df = Math.round((dx / pixelsPerSecond) * fps);
-                    EditorActions.setElementEndTo(el.id, origEnd + df);
+                    const dMs = Math.round((dx / pixelsPerSecond) * 1000);
+                    EditorActions.setElementEndTo(el.id, origEnd + dMs);
                   };
                   const up = () => {
                     window.removeEventListener("pointermove", move);

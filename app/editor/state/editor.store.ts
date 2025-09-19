@@ -13,8 +13,8 @@ export type Modifier = {
 export type BaseElement = {
   id: string;
   type: ElementType;
-  start: number; // frame index inclusive
-  end: number; // frame index exclusive
+  start: number; // millisecond index inclusive
+  end: number; // millisecond index exclusive
   pipeline?: Modifier[];
 };
 
@@ -22,8 +22,8 @@ export type VideoElement = BaseElement & {
   type: "video";
   data: {
     src: string;
-    in: number; // frame offset into source
-    out: number; // frame offset into source
+    in: number; // millisecond offset into source
+    out: number; // millisecond offset into source
     volume: number;
     speed: number;
   };
@@ -48,8 +48,8 @@ export type AudioElement = BaseElement & {
   type: "audio";
   data: {
     src: string;
-    in: number; // seconds offset into source
-    out: number; // seconds offset into source
+    in: number; // milliseconds offset into source
+    out: number; // milliseconds offset into source
     volume: number;
   };
 };
@@ -64,8 +64,8 @@ export type Track<T extends AnyElement = AnyElement> = {
 
 export type Timeline = {
   fps: number;
-  durationFrames: number; // total frames
-  currentFrame: number;
+  durationMs: number; // total duration in milliseconds
+  currentTimeMs: number; // current time in milliseconds
   pixelsPerSecond: number; // timeline zoom/scale
 };
 
@@ -88,8 +88,8 @@ export type EditorState = {
 export const editorStore = proxy<EditorState>({
   timeline: {
     fps: 30,
-    durationFrames: 30 * 20, // 20s
-    currentFrame: 0,
+    durationMs: 20 * 1000, // 20 seconds in milliseconds
+    currentTimeMs: 0,
     pixelsPerSecond: 80,
   },
   mediaTracks: [
@@ -138,9 +138,9 @@ export const EditorActions = {
       if (action) action.paused = !action.paused;
     } catch {}
   },
-  setCurrentFrame(frame: number) {
-    const max = editorStore.timeline.durationFrames - 1;
-    editorStore.timeline.currentFrame = Math.max(0, Math.min(frame, max));
+  setCurrentTime(ms: number) {
+    const max = editorStore.timeline.durationMs;
+    editorStore.timeline.currentTimeMs = Math.max(0, Math.min(ms, max));
   },
   selectElement(id: string | null) {
     editorStore.selection.elementId = id;
@@ -169,11 +169,10 @@ export const EditorActions = {
     editorStore.selection.elementId = null;
   },
   addImageFromSrc(src: string) {
-    const { fps, durationFrames, currentFrame } = editorStore.timeline;
-    const DEFAULT_SECONDS = 3;
-    const length = Math.floor(DEFAULT_SECONDS * fps);
-    const start = currentFrame;
-    const end = Math.min(start + length, durationFrames);
+    const { durationMs, currentTimeMs } = editorStore.timeline;
+    const DEFAULT_MS = 3000; // 3 seconds
+    const start = currentTimeMs;
+    const end = Math.min(start + DEFAULT_MS, durationMs);
     const el: ImageElement = {
       id: uid("el-image"),
       type: "image",
@@ -186,10 +185,10 @@ export const EditorActions = {
     return el.id;
   },
   addVideoFromSrc(src: string, sourceSeconds: number) {
-    const { fps, durationFrames, currentFrame } = editorStore.timeline;
-    const sourceFrames = Math.max(1, Math.floor(sourceSeconds * fps));
-    const start = currentFrame;
-    const end = Math.min(start + sourceFrames, durationFrames);
+    const { durationMs, currentTimeMs } = editorStore.timeline;
+    const sourceMs = sourceSeconds * 1000;
+    const start = currentTimeMs;
+    const end = Math.min(start + sourceMs, durationMs);
     const el: VideoElement = {
       id: uid("el-video"),
       type: "video",
@@ -198,7 +197,7 @@ export const EditorActions = {
       data: {
         src,
         in: 0,
-        out: sourceFrames - 1,
+        out: sourceMs,
         volume: 1,
         speed: 1,
       },
@@ -210,21 +209,21 @@ export const EditorActions = {
   setPlaybackSeconds(sec: number) {
     const mixer: any = editorStore.playback.mixer;
     const action: any = editorStore.playback.action;
-    const max = editorStore.timeline.durationFrames / editorStore.timeline.fps;
+    const max = editorStore.timeline.durationMs / 1000;
     const t = Math.max(0, Math.min(sec, max));
     try {
       if (mixer && typeof mixer.setTime === "function") mixer.setTime(t);
       if (action) action.time = t;
     } catch {}
   },
-  moveElement(id: string, deltaFrames: number) {
+  moveElement(id: string, deltaMs: number) {
     const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(v, max));
     const apply = <T extends AnyElement>(tracks: Track<T>[]) => {
       for (const t of tracks) {
         const el = t.elements.find((e) => e.id === id);
         if (el) {
           const len = el.end - el.start;
-          const start = clamp(el.start + deltaFrames, 0, editorStore.timeline.durationFrames - len);
+          const start = clamp(el.start + deltaMs, 0, editorStore.timeline.durationMs - len);
           el.start = start;
           el.end = start + len;
           return true;
@@ -234,14 +233,14 @@ export const EditorActions = {
     };
     if (!apply(editorStore.mediaTracks)) apply(editorStore.audioTracks);
   },
-  resizeElementStart(id: string, deltaFrames: number) {
+  resizeElementStart(id: string, deltaMs: number) {
     const apply = <T extends AnyElement>(tracks: Track<T>[]) => {
       for (const t of tracks) {
         const el = t.elements.find((e) => e.id === id);
         if (el) {
           const minStart = 0;
-          const maxStart = el.end - 1; // keep at least 1 frame
-          el.start = Math.max(minStart, Math.min(el.start + deltaFrames, maxStart));
+          const maxStart = el.end - 1;
+          el.start = Math.max(minStart, Math.min(el.start + deltaMs, maxStart));
           return true;
         }
       }
@@ -249,14 +248,14 @@ export const EditorActions = {
     };
     if (!apply(editorStore.mediaTracks)) apply(editorStore.audioTracks);
   },
-  resizeElementEnd(id: string, deltaFrames: number) {
+  resizeElementEnd(id: string, deltaMs: number) {
     const apply = <T extends AnyElement>(tracks: Track<T>[]) => {
       for (const t of tracks) {
         const el = t.elements.find((e) => e.id === id);
         if (el) {
-          const minEnd = el.start + 1; // at least 1 frame length
-          const maxEnd = editorStore.timeline.durationFrames;
-          el.end = Math.max(minEnd, Math.min(el.end + deltaFrames, maxEnd));
+          const minEnd = el.start + 1;
+          const maxEnd = editorStore.timeline.durationMs;
+          el.end = Math.max(minEnd, Math.min(el.end + deltaMs, maxEnd));
           return true;
         }
       }
@@ -283,7 +282,7 @@ export const EditorActions = {
       for (const t of tracks) {
         const el = t.elements.find((e) => e.id === id);
         if (el) {
-          const max = editorStore.timeline.durationFrames;
+          const max = editorStore.timeline.durationMs;
           const clamped = Math.max(el.start + 1, Math.min(newEnd, max));
           el.end = clamped;
           return true;
@@ -299,7 +298,7 @@ export const EditorActions = {
         const el = t.elements.find((e) => e.id === id);
         if (el) {
           const len = el.end - el.start;
-          const maxStart = editorStore.timeline.durationFrames - len;
+          const maxStart = editorStore.timeline.durationMs - len;
           const clamped = Math.max(0, Math.min(newStart, maxStart));
           el.start = clamped;
           el.end = clamped + len;

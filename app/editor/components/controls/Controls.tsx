@@ -15,7 +15,7 @@ export function Controls() {
         </button>
       </div>
       <div className="text-xs text-gray-400">
-        {Math.floor(snap.timeline.currentFrame / snap.timeline.fps)}s
+        {Math.floor(snap.timeline.currentTimeMs / 1000)}s
       </div>
     </div>
   );

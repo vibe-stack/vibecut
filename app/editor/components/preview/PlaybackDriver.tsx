@@ -40,11 +40,13 @@ export function PlaybackDriver({ durationSeconds }: { durationSeconds: number })
     if (!mixer || !action) return;
     if (!editorStore.isPlaying) return;
     mixer.update(delta);
+    editorStore.timeline.currentTimeMs = action.time * 1000; // Convert seconds to milliseconds
     // Stop at end and reset
     if (action.time >= durationSeconds) {
       EditorActions.pause();
       action.time = 0;
       mixer.setTime(0);
+      editorStore.timeline.currentTimeMs = 0;
     }
   });
 
