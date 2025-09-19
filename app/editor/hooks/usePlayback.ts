@@ -3,6 +3,7 @@ import { useSnapshot } from "valtio";
 import { editorStore, EditorActions } from "../state/editor.store";
 
 // Advances currentFrame while playing based on fps, using rAF.
+// Deprecated in favor of Three.js AnimationMixer driven time in PlaybackDriver.
 export function usePlayback() {
   const snap = useSnapshot(editorStore);
   const raf = useRef<number | null>(null);

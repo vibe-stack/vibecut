@@ -1,8 +1,9 @@
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 import { Image, Text, useVideoTexture } from "@react-three/drei";
 import { useSnapshot } from "valtio";
 import type { AnyElement, ImageElement, TextElement, VideoElement } from "../../state/editor.store";
 import { editorStore } from "../../state/editor.store";
+import { usePlaybackTime } from "../../hooks/usePlaybackTime";
 
 function isVisible(el: { start: number; end: number }, frame: number) {
   return frame >= el.start && frame < el.end;
@@ -35,8 +36,7 @@ function computeVideoTime(el: VideoElement, frame: number, fps: number) {
   return sourceFrame / fps; // seconds into source
 }
 
-function VideoItem({ el }: { el: VideoElement }) {
-  const snap = useSnapshot(editorStore);
+function VideoItem({ el, frame, fps, isPlaying }: { el: VideoElement; frame: number; fps: number; isPlaying: boolean }) {
   const videoTexture = useVideoTexture(el.data.src, {
     start: false,
     muted: true,
@@ -49,18 +49,40 @@ function VideoItem({ el }: { el: VideoElement }) {
   useEffect(() => {
     const video = (videoTexture as any)?.image as HTMLVideoElement | undefined;
     if (!video) return;
-    const t = computeVideoTime(el, snap.timeline.currentFrame, snap.timeline.fps);
-    if (t == null) {
-      if (!video.paused) video.pause();
+    // Ensure mobile-friendly attributes
+    video.muted = true;
+    (video as any).playsInline = true;
+  }, [videoTexture]);
+
+  useEffect(() => {
+    const video = (videoTexture as any)?.image as HTMLVideoElement | undefined;
+    if (!video) return;
+    const desired = computeVideoTime(el, frame, fps);
+    if (desired == null) {
+      // Element not visible at this time
+      if (!video.paused) {
+        try { video.pause(); } catch {}
+      }
       return;
     }
-    // Avoid triggering play; just seek and pause to show exact frame
-    try {
-      if (Math.abs(video.currentTime - t) > 0.033) video.currentTime = t; // ~1 frame threshold
-      if (!video.paused) video.pause();
-      video.muted = true;
-    } catch {}
-  }, [videoTexture, snap.timeline.currentFrame, snap.timeline.fps, el]);
+    const drift = Math.abs(video.currentTime - desired);
+    if (isPlaying) {
+      // Nudge if drift accumulates
+      if (drift > 0.05) {
+        try { video.currentTime = desired; } catch {}
+      }
+      if (video.paused) {
+        // Attempt to play; ignore gesture errors (muted inline should work)
+        void video.play().catch(() => {});
+      }
+    } else {
+      // Pause and seek exactly
+      try {
+        if (drift > 0.01) video.currentTime = desired;
+        if (!video.paused) video.pause();
+      } catch {}
+    }
+  }, [videoTexture, frame, fps, isPlaying, el]);
 
   return (
     <mesh>
@@ -72,7 +94,8 @@ function VideoItem({ el }: { el: VideoElement }) {
 
 export function MediaLayer() {
   const snap = useSnapshot(editorStore);
-  const frame = snap.timeline.currentFrame;
+  const time = usePlaybackTime();
+  const frame = useMemo(() => Math.floor(time * snap.timeline.fps), [time, snap.timeline.fps]);
 
   const visible = snap.mediaTracks
     .flatMap((t) => t.elements)
@@ -81,7 +104,7 @@ export function MediaLayer() {
   return (
     <group>
       <Suspense fallback={null}>
-        {visible.map((el, i) => {
+  {visible.map((el, i) => {
           const z = 0.01 * i; // simple stacking
           if (el.type === "text") {
             return (
@@ -100,7 +123,7 @@ export function MediaLayer() {
           if (el.type === "video") {
             return (
               <group key={el.id} position={[0, 0, z]}>
-                <VideoItem el={el as unknown as VideoElement} />
+                <VideoItem el={el as unknown as VideoElement} frame={frame} fps={snap.timeline.fps} isPlaying={snap.isPlaying} />
               </group>
             );
           }

@@ -79,6 +79,10 @@ export type EditorState = {
   audioTracks: Track<AudioElement>[];
   selection: Selection;
   isPlaying: boolean;
+  playback: {
+    mixer: any | null; // THREE.AnimationMixer
+    action: any | null; // THREE.AnimationAction
+  };
 };
 
 export const editorStore = proxy<EditorState>({
@@ -127,18 +131,31 @@ export const editorStore = proxy<EditorState>({
   ],
   selection: { elementId: null },
   isPlaying: false,
+  playback: { mixer: null, action: null },
 });
 
 // Mutators and helpers
 export const EditorActions = {
   play() {
     editorStore.isPlaying = true;
+    try {
+      const action = editorStore.playback.action;
+      if (action) action.paused = false;
+    } catch {}
   },
   pause() {
     editorStore.isPlaying = false;
+    try {
+      const action = editorStore.playback.action;
+      if (action) action.paused = true;
+    } catch {}
   },
   togglePlay() {
     editorStore.isPlaying = !editorStore.isPlaying;
+    try {
+      const action = editorStore.playback.action;
+      if (action) action.paused = !action.paused;
+    } catch {}
   },
   setCurrentFrame(frame: number) {
     const max = editorStore.timeline.durationFrames - 1;
@@ -208,6 +225,63 @@ export const EditorActions = {
     ensureMediaTrack().elements.push(el);
     editorStore.selection.elementId = el.id;
     return el.id;
+  },
+  setPlaybackSeconds(sec: number) {
+    const mixer: any = editorStore.playback.mixer;
+    const action: any = editorStore.playback.action;
+    const max = editorStore.timeline.durationFrames / editorStore.timeline.fps;
+    const t = Math.max(0, Math.min(sec, max));
+    try {
+      if (mixer && typeof mixer.setTime === "function") mixer.setTime(t);
+      if (action) action.time = t;
+    } catch {}
+  },
+  moveElement(id: string, deltaFrames: number) {
+    const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(v, max));
+    const apply = <T extends AnyElement>(tracks: Track<T>[]) => {
+      for (const t of tracks) {
+        const el = t.elements.find((e) => e.id === id);
+        if (el) {
+          const len = el.end - el.start;
+          const start = clamp(el.start + deltaFrames, 0, editorStore.timeline.durationFrames - len);
+          el.start = start;
+          el.end = start + len;
+          return true;
+        }
+      }
+      return false;
+    };
+    if (!apply(editorStore.mediaTracks)) apply(editorStore.audioTracks);
+  },
+  resizeElementStart(id: string, deltaFrames: number) {
+    const apply = <T extends AnyElement>(tracks: Track<T>[]) => {
+      for (const t of tracks) {
+        const el = t.elements.find((e) => e.id === id);
+        if (el) {
+          const minStart = 0;
+          const maxStart = el.end - 1; // keep at least 1 frame
+          el.start = Math.max(minStart, Math.min(el.start + deltaFrames, maxStart));
+          return true;
+        }
+      }
+      return false;
+    };
+    if (!apply(editorStore.mediaTracks)) apply(editorStore.audioTracks);
+  },
+  resizeElementEnd(id: string, deltaFrames: number) {
+    const apply = <T extends AnyElement>(tracks: Track<T>[]) => {
+      for (const t of tracks) {
+        const el = t.elements.find((e) => e.id === id);
+        if (el) {
+          const minEnd = el.start + 1; // at least 1 frame length
+          const maxEnd = editorStore.timeline.durationFrames;
+          el.end = Math.max(minEnd, Math.min(el.end + deltaFrames, maxEnd));
+          return true;
+        }
+      }
+      return false;
+    };
+    if (!apply(editorStore.mediaTracks)) apply(editorStore.audioTracks);
   },
 };
 

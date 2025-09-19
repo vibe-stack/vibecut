@@ -1,11 +1,9 @@
-import { usePlayback } from "../hooks/usePlayback";
 import { Preview } from "./Preview";
 import { Controls } from "./controls/Controls";
 import { Timeline } from "./timeline/Timeline";
 import { ActionsBar } from "./footer/ActionsBar";
 
 export function EditorScreen() {
-  usePlayback();
   return (
     <div className="min-h-screen w-full bg-gray-950 text-gray-200 flex flex-col">
       <header className="px-4 py-3 border-b border-gray-800">

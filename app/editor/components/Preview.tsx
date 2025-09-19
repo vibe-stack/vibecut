@@ -3,6 +3,7 @@ import { useSnapshot } from "valtio";
 import { editorStore } from "../state/editor.store";
 import { useEffect, useMemo, useState } from "react";
 import { MediaLayer } from "./preview/MediaLayer";
+import { PlaybackDriver } from "./preview/PlaybackDriver";
 import * as THREE from 'three/webgpu'
 import * as TSL from 'three/tsl'
 import { Canvas, extend, useFrame, useThree, type ThreeToJSXElements } from '@react-three/fiber'
@@ -48,6 +49,7 @@ export function Preview() {
                     return renderer
                 }} orthographic dpr={[1, 2]}>
                     <OrthographicCamera makeDefault position={[0, 0, 5]} zoom={300} />
+                    <PlaybackDriver durationSeconds={editorStore.timeline.durationFrames / editorStore.timeline.fps} />
                     <Scene />
                 </Canvas>
             ) : (
