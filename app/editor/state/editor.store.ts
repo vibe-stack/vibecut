@@ -97,20 +97,7 @@ export const editorStore = proxy<EditorState>({
       id: "media-1",
       name: "General Media",
       elements: [
-        {
-          id: "el-text-1",
-          type: "text",
-          start: 0,
-          end: 30 * 5, // 5s
-          data: { text: "Hello", color: "#e5e7eb" },
-        },
-        {
-          id: "el-image-1",
-          type: "image",
-          start: 30 * 7,
-          end: 30 * 12, // 5s
-          data: { src: "/favicon.ico" },
-        },
+
       ],
     },
   ],
@@ -119,13 +106,7 @@ export const editorStore = proxy<EditorState>({
       id: "audio-1",
       name: "Audio",
       elements: [
-        {
-          id: "el-audio-1",
-          type: "audio",
-          start: 30 * 2,
-          end: 30 * 18,
-          data: { src: "", in: 0, out: 16, volume: 0.8 },
-        },
+
       ],
     },
   ],
