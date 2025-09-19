@@ -154,7 +154,14 @@ export const EditorActions = {
       for (const t of tracks) {
         const idx = t.elements.findIndex((e) => e.id === id);
         if (idx >= 0) {
-          t.elements.splice(idx, 1);
+          const [removed] = t.elements.splice(idx, 1);
+          // Revoke blob URLs if any
+          try {
+            const src = (removed as any).data?.src as string | undefined;
+            if (src && typeof URL !== "undefined" && src.startsWith("blob:")) {
+              URL.revokeObjectURL(src);
+            }
+          } catch {}
           return true;
         }
       }
@@ -162,6 +169,45 @@ export const EditorActions = {
     };
     if (!remove(editorStore.mediaTracks)) remove(editorStore.audioTracks);
     editorStore.selection.elementId = null;
+  },
+  addImageFromSrc(src: string) {
+    const { fps, durationFrames, currentFrame } = editorStore.timeline;
+    const DEFAULT_SECONDS = 3;
+    const length = Math.floor(DEFAULT_SECONDS * fps);
+    const start = currentFrame;
+    const end = Math.min(start + length, durationFrames);
+    const el: ImageElement = {
+      id: uid("el-image"),
+      type: "image",
+      start,
+      end,
+      data: { src },
+    };
+    ensureMediaTrack().elements.push(el);
+    editorStore.selection.elementId = el.id;
+    return el.id;
+  },
+  addVideoFromSrc(src: string, sourceSeconds: number) {
+    const { fps, durationFrames, currentFrame } = editorStore.timeline;
+    const sourceFrames = Math.max(1, Math.floor(sourceSeconds * fps));
+    const start = currentFrame;
+    const end = Math.min(start + sourceFrames, durationFrames);
+    const el: VideoElement = {
+      id: uid("el-video"),
+      type: "video",
+      start,
+      end,
+      data: {
+        src,
+        in: 0,
+        out: sourceFrames - 1,
+        volume: 1,
+        speed: 1,
+      },
+    };
+    ensureMediaTrack().elements.push(el);
+    editorStore.selection.elementId = el.id;
+    return el.id;
   },
 };
 
@@ -176,4 +222,17 @@ export function getElementById(id: string | null): AnyElement | null {
     if (el) return el;
   }
   return null;
+}
+
+function ensureMediaTrack() {
+  if (editorStore.mediaTracks.length === 0) {
+    editorStore.mediaTracks.push({ id: uid("media"), name: "General Media", elements: [] });
+  }
+  return editorStore.mediaTracks[0];
+}
+
+function uid(prefix = "id") {
+  const rnd = Math.random().toString(36).slice(2, 8);
+  const ts = Date.now().toString(36).slice(-4);
+  return `${prefix}-${ts}${rnd}`;
 }

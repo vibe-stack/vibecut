@@ -1,5 +1,6 @@
 import { useSnapshot } from "valtio";
 import { editorStore, getElementById, EditorActions } from "../../state/editor.store";
+import { FilePicker } from "./FilePicker";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -60,10 +61,38 @@ export function ActionsBar() {
   return (
     <div className="bg-gray-950/80 backdrop-blur supports-[backdrop-filter]:bg-gray-950/70">
       <Section title="Add to timeline">
-        <Btn>Audio</Btn>
-        <Btn>Text</Btn>
-        <Btn>Video</Btn>
-        <Btn>Image</Btn>
+        <FilePicker
+          accept="image/*"
+          label="Image"
+          onFiles={(files) => {
+            const f = files[0];
+            if (!f) return;
+            const url = URL.createObjectURL(f);
+            EditorActions.addImageFromSrc(url);
+          }}
+        />
+        <FilePicker
+          accept="video/*"
+          label="Video"
+          onFiles={(files) => {
+            const f = files[0];
+            if (!f) return;
+            const url = URL.createObjectURL(f);
+            // Get duration from metadata to compute frames
+            const video = document.createElement("video");
+            video.preload = "metadata";
+            video.src = url;
+            video.onloadedmetadata = () => {
+              const seconds = isFinite(video.duration) ? video.duration : 1;
+              EditorActions.addVideoFromSrc(url, seconds);
+            };
+            video.onerror = () => {
+              // Fallback to 1s if metadata fails
+              EditorActions.addVideoFromSrc(url, 1);
+            };
+          }}
+        />
+        {/* Audio upload could be added later */}
       </Section>
     </div>
   );
