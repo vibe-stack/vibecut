@@ -59,7 +59,7 @@ function TrackRow({ trackId, kind }: TrackRowProps) {
   const snap = useSnapshot(editorStore);
   const track = (kind === "media"
     ? snap.mediaTracks.find((t) => t.id === trackId)
-    : snap.audioTracks.find((t) => t.id === trackId)) as any;
+    : snap.audioTracks.find((t) => t.id === trackId));
   const { pixelsPerSecond } = snap.timeline;
 
   if (!track) return null;

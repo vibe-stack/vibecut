@@ -7,7 +7,7 @@ export function usePlaybackTime() {
   useEffect(() => {
     let raf = 0;
     const loop = () => {
-      const action = editorStore.playback.action as any;
+      const action = editorStore.playback.action;
       if (action) {
         const timeInSeconds = action.time || 0;
         setTimeMs(timeInSeconds * 1000); // Convert seconds to milliseconds

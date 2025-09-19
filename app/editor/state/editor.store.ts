@@ -1,5 +1,5 @@
 import { proxy } from "valtio";
-
+import * as THREE from 'three/webgpu'
 export type MediaType = "video" | "image" | "text";
 export type AudioType = "audio";
 export type ElementType = MediaType | AudioType;
@@ -80,8 +80,8 @@ export type EditorState = {
   selection: Selection;
   isPlaying: boolean;
   playback: {
-    mixer: any | null; // THREE.AnimationMixer
-    action: any | null; // THREE.AnimationAction
+    mixer: THREE.AnimationMixer | null; // THREE.AnimationMixer
+    action: THREE.AnimationAction | null; // THREE.AnimationAction
   };
 };
 

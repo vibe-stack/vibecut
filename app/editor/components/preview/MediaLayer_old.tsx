@@ -54,7 +54,7 @@ function VideoItem({ el, getTimeMs, getIsPlaying, onRegisterVideo }: { el: Video
 
   // Keep video element in sync with timeline time
   useEffect(() => {
-    const video = (videoTexture)?.image as HTMLVideoElement | undefined;
+    const video = (videoTexture as any)?.image as HTMLVideoElement | undefined;
     if (!video) return;
     
     const handleLoadedMetadata = () => {
@@ -67,9 +67,10 @@ function VideoItem({ el, getTimeMs, getIsPlaying, onRegisterVideo }: { el: Video
     
     // Ensure mobile-friendly attributes
     video.muted = true;
-    (video).playsInline = true;
-    video.preload = "auto";
-    try { video.pause(); } catch {}
+    (video as any).playsInline = true;
+  // Ensure video is ready before we try to sync it
+  video.preload = "auto";
+  try { video.pause(); } catch {}
     
     video.addEventListener('loadedmetadata', handleLoadedMetadata);
     video.addEventListener('loadeddata', handleLoadedData);
@@ -86,10 +87,10 @@ function VideoItem({ el, getTimeMs, getIsPlaying, onRegisterVideo }: { el: Video
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
       video.removeEventListener('loadeddata', handleLoadedData);
       try { onRegisterVideo?.(el.id, null); } catch {}
-      const cancelRVFC = (video).cancelVideoFrameCallback?.bind(video);
-      if (rVFCHandleRef.current != null && cancelRVFC) cancelRVFC(rVFCHandleRef.current);
+      const cancelRVFC = (video as any).cancelVideoFrameCallback?.bind(video as any);
+      if (rVFCHandleRef.current != null && cancelRVFC) cancelRVFC(rVFCHandleRef.current as any);
     };
-  }, [videoTexture, el.id, onRegisterVideo]);
+  }, [videoTexture]);
 
   // Configure texture flags for WebGPU video
   useEffect(() => {
@@ -100,75 +101,82 @@ function VideoItem({ el, getTimeMs, getIsPlaying, onRegisterVideo }: { el: Video
     (tex).magFilter = THREE.LinearFilter;
     if ((tex).colorSpace !== undefined) {
       (tex).colorSpace = (THREE).SRGBColorSpace ?? (tex).colorSpace;
+    } else if ((tex).encoding !== undefined) {
+      (tex).encoding = (THREE).sRGBEncoding ?? (tex).encoding;
     }
     (tex).flipY = false;
   }, [videoTexture]);
 
-  // Drive the video via r3f frame loop - let it play during playback, seek when paused
+  // Drive the video via r3f frame loop based on the Three action time (single clock, paused+seek)
   useFrame(() => {
-    const video = (videoTexture)?.image as HTMLVideoElement | undefined;
+    const video = (videoTexture as any)?.image as HTMLVideoElement | undefined;
     if (!video || !videoReadyRef.current) return;
     const timeMs = getTimeMs();
     const desired = computeVideoTime(el, timeMs);
     if (desired == null) {
       try { if (!video.paused) video.pause(); } catch {}
+      hasFrameRef.current = false;
+      if (meshRef.current) meshRef.current.visible = false;
       return;
     }
-    
-    const isPlaying = getIsPlaying();
-    const drift = Math.abs(video.currentTime - desired);
     const now = performance.now();
     const frameTol = 1 / 60; // ~16ms
-    const correctionThreshold = isPlaying ? 0.01 : frameTol; // 100ms during play, 1 frame when paused
-
-    if (isPlaying) {
-      // Let video play naturally with correct playbackRate
-      const speed = el.data.speed || 1;
-      if (video.playbackRate !== speed) video.playbackRate = speed;
-      if (video.paused) { void video.play().catch(() => {}); }
-      
-      // Only correct significant drift to avoid constant seeking
-      if (drift > correctionThreshold && (now - lastSeekTimeRef.current) > 200) {
-        try {
-          video.currentTime = desired;
-          lastSeekTimeRef.current = now;
-          lastDesiredRef.current = desired;
-        } catch {}
-      }
-    } else {
-      // When paused, seek to exact frame
-      if (drift > correctionThreshold && (now - lastSeekTimeRef.current) > 16) {
-        try {
-          if (!video.paused) video.pause();
-          video.currentTime = desired;
-          lastSeekTimeRef.current = now;
-          lastDesiredRef.current = desired;
-        } catch {}
-      } else {
-        try { if (!video.paused) video.pause(); } catch {}
-      }
+    // Always pause and set exact time based on the action to avoid dual clocks
+    try { if (!video.paused) video.pause(); } catch {}
+    const lastDesired = lastDesiredRef.current ?? -Infinity;
+    if (Math.abs(desired - lastDesired) > frameTol && (now - lastSeekTimeRef.current) > 6) {
+      try {
+        // Cancel any pending rVFC for old target if supported
+        const cancelRVFC = (video as any).cancelVideoFrameCallback?.bind(video as any);
+        if (rVFCHandleRef.current != null && cancelRVFC) cancelRVFC(rVFCHandleRef.current as any);
+        rVFCHandleRef.current = null;
+        hasFrameRef.current = false;
+        video.currentTime = desired;
+        targetTimeRef.current = desired;
+        lastSeekTimeRef.current = now;
+        lastDesiredRef.current = desired;
+      } catch {}
     }
 
-    // Simple texture update
-    const tex = videoTexture;
-    if (typeof (video).requestVideoFrameCallback === 'function') {
+    // Request GPU texture update when the browser produces a new frame
+    const tex = videoTexture as any;
+    if (typeof (video as any).requestVideoFrameCallback === 'function') {
       if (rVFCHandleRef.current == null) {
-        rVFCHandleRef.current = (video).requestVideoFrameCallback(() => {
+        rVFCHandleRef.current = (video as any).requestVideoFrameCallback((_: any, metadata: any) => {
           rVFCHandleRef.current = null;
-          if (tex) tex.needsUpdate = true;
+          const mediaTime: number = metadata?.mediaTime ?? (video.currentTime ?? 0);
+          const target = targetTimeRef.current;
+          if (target != null && Math.abs(mediaTime - target) <= frameTol) {
+            if (tex) tex.needsUpdate = true;
+            hasFrameRef.current = true;
+          } else {
+            // Not yet matching the target; schedule another callback
+            rVFCHandleRef.current = (video as any).requestVideoFrameCallback((_: any, md: any) => {
+              rVFCHandleRef.current = null;
+              const mt: number = md?.mediaTime ?? (video.currentTime ?? 0);
+              if (targetTimeRef.current != null && Math.abs(mt - targetTimeRef.current) <= frameTol) {
+                if (tex) tex.needsUpdate = true;
+                hasFrameRef.current = true;
+              }
+            });
+          }
         });
       }
     } else {
       // Fallback: mark for update regularly
       if (tex) tex.needsUpdate = true;
+      hasFrameRef.current = true;
     }
+
+    // Reflect visibility based on whether a decoded frame was uploaded
+    //if (meshRef.current) meshRef.current.visible = hasFrameRef.current;
   });
 
   return (
-    <mesh>
+    <mesh visible={true}>
       <planeGeometry args={fitScale().slice(0, 2) as unknown as [number, number]} />
       <meshBasicMaterial 
-        map={videoTexture} 
+        map={videoTexture as any} 
         toneMapped={false} 
         transparent={false}
         alphaTest={0}
@@ -187,7 +195,7 @@ export function MediaLayer() {
 
   // Provide a function that reads time in ms directly from the Three action (fast)
   const getTimeMs = () => {
-    const action = actionRef.current;
+    const action = actionRef.current as any;
     const t = action ? action.time : 0;
     return (t || 0) * 1000;
   };
@@ -233,16 +241,16 @@ export function MediaLayer() {
     rows.push(`t(action)=${t}s, playing=${editorStore.isPlaying}`);
     // Map IDs to elements for drift calculation
   const elementsById = new Map<string, AnyElement>();
-  editorStore.mediaTracks.flatMap((tr) => tr.elements).forEach((e) => elementsById.set(e.id, e));
+  editorStore.mediaTracks.flatMap((tr) => tr.elements).forEach((e) => elementsById.set(e.id, e as AnyElement));
     debugVideosRef.current.forEach((v, id) => {
       if (!v) return;
       const ct = (v.currentTime ?? 0).toFixed(3);
-      const elx = elementsById.get(id);
-      const desired = elx && elx.type === 'video' ? computeVideoTime(elx, (actionRef.current?.time ?? 0) * 1000) : null;
+      const elx = elementsById.get(id) as any;
+      const desired = elx && elx.type === 'video' ? computeVideoTime(elx as any, (actionRef.current?.time ?? 0) * 1000) : null;
       const drift = desired != null ? (desired - (v.currentTime ?? 0)) : null;
       rows.push(`${id}: video=${ct}s${drift != null ? ` drift=${drift.toFixed(3)}s` : ''}`);
     });
-    el.textContent = rows.join("\\n");
+    el.textContent = rows.join("\n");
   });
 
   return (
