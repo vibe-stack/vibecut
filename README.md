@@ -1,87 +1,57 @@
-# Welcome to React Router!
+# VibeCut — Mobile Video Editor (Preview)
 
-A modern, production-ready template for building full-stack React applications using React Router.
-
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/remix-run/react-router-templates/tree/main/default)
+Mobile-first video editor UI built with React Router, Vite, Valtio, and react-three-fiber.
 
 ## Features
 
-- 🚀 Server-side rendering
-- ⚡️ Hot Module Replacement (HMR)
-- 📦 Asset bundling and optimization
-- 🔄 Data loading and mutations
-- 🔒 TypeScript by default
-- 🎉 TailwindCSS for styling
-- 📖 [React Router docs](https://reactrouter.com/)
+- Preview area (top ~50% viewport) rendered with react-three-fiber
+- Controls area with Play/Pause
+- Tracks area with time ruler, red playhead, and two categories:
+	- General Media (Images, Video, Text)
+	- Audio
+- Elements on tracks have start:end durations and selection
+- Context-aware actions footer for selected elements or add actions when none selected
 
-## Getting Started
+Dark, calming, minimalistic, and rounded UI. Avoids bright accents; no purple.
 
-### Installation
+## Tech
 
-Install the dependencies:
+- React Router 7, Vite 6
+- Valtio for editor state
+- react-three-fiber and drei for 3D preview
+- Tailwind CSS v4 for styling
 
-```bash
-npm install
-```
-
-### Development
-
-Start the development server with HMR:
+## Quickstart
 
 ```bash
-npm run dev
+pnpm install
+pnpm dev
 ```
 
-Your application will be available at `http://localhost:5173`.
+Then open the shown URL. The home route renders the editor UI.
 
-## Building for Production
+## Notes
 
-Create a production build:
+- The preview scene is a placeholder that animates a bar based on time.
+- Timeline scale is controlled via `timeline.pixelsPerSecond` in `app/editor/state/editor.store.ts`.
+- Playback is driven by `usePlayback` which advances frames at the configured FPS.
+- All project data (timeline, tracks, elements) lives in a single Valtio store.
 
-```bash
-npm run build
-```
-
-## Deployment
-
-### Docker Deployment
-
-To build and run using Docker:
-
-```bash
-docker build -t my-app .
-
-# Run the container
-docker run -p 3000:3000 my-app
-```
-
-The containerized application can be deployed to any platform that supports Docker, including:
-
-- AWS ECS
-- Google Cloud Run
-- Azure Container Apps
-- Digital Ocean App Platform
-- Fly.io
-- Railway
-
-### DIY Deployment
-
-If you're familiar with deploying Node applications, the built-in app server is production-ready.
-
-Make sure to deploy the output of `npm run build`
+## Folder Structure
 
 ```
-├── package.json
-├── package-lock.json (or pnpm-lock.yaml, or bun.lockb)
-├── build/
-│   ├── client/    # Static assets
-│   └── server/    # Server-side code
+app/
+	editor/
+		components/
+			controls/        # Play/Pause controls
+			footer/          # Context-aware actions bar
+			timeline/        # Time ruler, tracks, elements
+			EditorScreen.tsx # Composes the editor layout
+			Preview.tsx      # 3D preview via react-three-fiber
+		hooks/
+			usePlayback.ts   # Advances currentFrame when playing
+		state/
+			editor.store.ts  # Valtio store and actions
+		utils/
+			time.ts          # Formatting and layout helpers
 ```
-
-## Styling
-
-This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever CSS framework you prefer.
-
----
-
-Built with ❤️ using React Router.
