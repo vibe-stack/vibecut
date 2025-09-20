@@ -9,6 +9,8 @@ import { useSnapshot } from 'valtio';
 import editorStore from '../../../shared/store';
 import ImageFiltersAction from '../components/image-filters-action';
 import ImageAdjustAction from '../components/image-adjust-action';
+import ChangeTextAction from '../components/change-text-action';
+import TextStyleAction from '../components/text-style-action';
 
 export const ClipActions: React.FC<{ clipId: string }> = ({ clipId }) => {
   const snap = useSnapshot(editorStore);
@@ -30,6 +32,13 @@ export const ClipActions: React.FC<{ clipId: string }> = ({ clipId }) => {
           <>
             <ImageFiltersAction clipId={clip.id} />
             <ImageAdjustAction clipId={clip.id} />
+          </>
+        )}
+
+        {asset?.type === 'text' && (
+          <>
+            <ChangeTextAction clipId={clip.id} />
+            <TextStyleAction clipId={clip.id} />
           </>
         )}
       </ActionsRow>

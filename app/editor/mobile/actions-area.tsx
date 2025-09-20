@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import { useSnapshot } from 'valtio';
 import editorStore from '../shared/store';
-import GeneralActions from './actions/categories/general-actions';
 import TrackActions from './actions/categories/track-actions';
 import ClipActions from './actions/categories/clip-actions';
 
@@ -12,8 +11,6 @@ export const ActionsArea: React.FC = () => {
     [snap.selectedTrackIds, snap.tracks]
   );
   const selectedClipId = snap.selectedClipIds[0];
-
-  if (!selectedTrack && !selectedClipId) return <GeneralActions />;
   if (selectedTrack && !selectedClipId) return <TrackActions trackId={selectedTrack.id} />;
   if (selectedClipId) return <ClipActions clipId={selectedClipId} />;
   return null;

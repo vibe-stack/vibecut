@@ -11,11 +11,11 @@ export const useVideoPlayback = (clip: ActiveClip, isActive: boolean) => {
   const materialRef = useRef<THREE.MeshBasicMaterial>(null);
   const textureRef = useRef<THREE.VideoTexture | null>(null);
 
-  const asset = snapshot.assets[clip.assetId];
+  const asset = snapshot.assets[clip.assetId] as any;
 
   // Set up video texture when video loads
   useEffect(() => {
-  if (asset && asset.type === 'video' && asset.video && asset.loadState === 'loaded') {
+  if (asset && asset.type === 'video' && asset.loadState === 'loaded') {
       // Create a unique video element for this clip to avoid conflicts
       const video = document.createElement('video');
       // Attributes must be set before src for Safari/iOS
@@ -32,7 +32,7 @@ export const useVideoPlayback = (clip: ActiveClip, isActive: boolean) => {
       video.setAttribute('playsinline', '');
       video.setAttribute('webkit-playsinline', '');
       video.loop = false;
-      video.src = asset.src;
+  video.src = asset.src;
       
       // Set up the video for playback
       const handleLoadedData = () => {

@@ -34,6 +34,14 @@ const createInitialState = (): EditorState => ({
     gridSnap: false,
     gridSize: 1,
     defaultImageDuration: 3,
+    defaultTextDuration: 3,
+    defaultTextStyle: {
+      fontFamily: 'Inter',
+      fontSize: 0.4,
+      bold: false,
+      italic: false,
+      color: '#ffffff',
+    },
   },
   
   selectedClipIds: [],
@@ -93,6 +101,9 @@ export const editorActions = {
   addImageAsset: (asset: Omit<Extract<Asset, { type: 'image' }>, 'id'>) => {
     return editorActions.addAsset(asset as Omit<Asset, 'id'>);
   },
+  addTextAsset: (asset: Omit<Extract<Asset, { type: 'text' }>, 'id'>) => {
+    return editorActions.addAsset(asset as Omit<Asset, 'id'>);
+  },
 
   /**
    * Remove an asset and all clips that use it
@@ -144,7 +155,9 @@ export const editorActions = {
     const start = lastEnd;
     const clipDuration = asset.type === 'video'
       ? asset.duration
-      : editorStore.config.defaultImageDuration || 3;
+      : asset.type === 'image'
+        ? (editorStore.config.defaultImageDuration || 3)
+        : (editorStore.config.defaultTextDuration || 3);
     const end = start + clipDuration;
 
     editorActions.addClip(trackId, {
@@ -273,6 +286,10 @@ export const editorActions = {
         vignette: 0,
       } : undefined,
       imageFilterPreset: asset.type === 'image' ? 'none' : undefined,
+
+      // text-only defaults
+      textContent: asset.type === 'text' ? (clipData as any).textContent ?? 'Text' : undefined,
+      textStyle: asset.type === 'text' ? (clipData as any).textStyle ?? editorStore.config.defaultTextStyle : undefined,
     };
 
     track.clips.push(newClip);
@@ -312,7 +329,7 @@ export const editorActions = {
           if (asset.type === 'video' && ('trimStart' in updates || 'trimEnd' in updates)) {
             clip.duration = clip.trimEnd ? clip.trimEnd - clip.trimStart : asset.duration - clip.trimStart;
           }
-          if (asset.type === 'image' && ('start' in updates || 'end' in updates)) {
+          if ((asset.type === 'image' || asset.type === 'text') && ('start' in updates || 'end' in updates)) {
             clip.duration = Math.max(0, clip.end - clip.start);
           }
         }
@@ -320,6 +337,70 @@ export const editorActions = {
         editorActions.updateTotalDuration();
         break;
       }
+    }
+  },
+
+  /**
+   * TEXT-SPECIFIC: create a text asset and clip in one go
+   */
+  addTextClip: (params?: { content?: string; style?: Partial<EditorConfig['defaultTextStyle']>; start?: number; duration?: number; trackId?: string; }) => {
+    const assetId = editorActions.addTextAsset({
+      type: 'text',
+      src: 'text://local',
+      loadState: 'loaded',
+    } as any);
+    const trackId = params?.trackId || editorActions.getPreferredTrackId();
+    const track = editorStore.tracks.find(t => t.id === trackId);
+    if (!track) return undefined;
+    const start = params?.start ?? track.clips.reduce((m, c) => Math.max(m, c.end), 0);
+    const duration = params?.duration ?? (editorStore.config.defaultTextDuration || 3);
+    const end = start + duration;
+    const textStyle = { ...(editorStore.config.defaultTextStyle || {}), ...(params?.style || {}) } as any;
+    const clipId = editorActions.addClip(trackId, {
+      assetId,
+      start,
+      end,
+      trimStart: 0,
+      trimEnd: null,
+      textContent: params?.content ?? 'Text',
+      textStyle,
+    } as any);
+    return clipId;
+  },
+
+  /** Update text content of a text clip */
+  setTextContent: (clipId: string, content: string) => {
+    for (const track of editorStore.tracks) {
+      const clip = track.clips.find(c => c.id === clipId);
+      if (!clip) continue;
+      const asset = editorStore.assets[clip.assetId];
+      if (asset?.type !== 'text') return;
+      clip.textContent = content;
+      break;
+    }
+  },
+
+  /** Update text style (non-destructive, per-clip) */
+  setTextStyle: (clipId: string, updates: Partial<NonNullable<Clip['textStyle']>>) => {
+    for (const track of editorStore.tracks) {
+      const clip = track.clips.find(c => c.id === clipId);
+      if (!clip) continue;
+      const asset = editorStore.assets[clip.assetId];
+      if (asset?.type !== 'text') return;
+      clip.textStyle = { ...(clip.textStyle || editorStore.config.defaultTextStyle!), ...updates } as any;
+      break;
+    }
+  },
+
+  /** Reset text style to defaults */
+  resetTextStyle: (clipId: string) => {
+    for (const track of editorStore.tracks) {
+      const clip = track.clips.find(c => c.id === clipId);
+      if (!clip) continue;
+      const asset = editorStore.assets[clip.assetId];
+      if (asset?.type !== 'text') return;
+      clip.textStyle = { ...(editorStore.config.defaultTextStyle || {}) } as any;
+      break;
     }
   },
 

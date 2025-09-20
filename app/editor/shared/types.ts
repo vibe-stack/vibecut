@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 
 /**
- * Media assets: video or image
+ * Media assets: video, image or text
  */
-export type MediaType = 'video' | 'image';
+export type MediaType = 'video' | 'image' | 'text';
 
 export interface BaseAsset {
   id: string;
@@ -28,7 +28,11 @@ export interface ImageAsset extends BaseAsset {
   image: HTMLImageElement | null; // Loaded image element for texture
 }
 
-export type Asset = VideoAsset | ImageAsset;
+export interface TextAsset extends BaseAsset {
+  type: 'text';
+}
+
+export type Asset = VideoAsset | ImageAsset | TextAsset;
 
 /**
  * A video clip placed on a track
@@ -66,6 +70,12 @@ export interface Clip {
    */
   imageAdjustments?: ImageAdjustments; // Present when asset is image
   imageFilterPreset?: ImageFilterPreset; // Optional filter preset name
+
+  /**
+   * Text-only: per-clip content and style (non-destructive)
+   */
+  textContent?: string;
+  textStyle?: TextStyle;
 }
 
 /**
@@ -114,6 +124,10 @@ export interface EditorConfig {
   gridSize: number; // Grid size for 3D positioning
   /** Default clip duration when dropping/adding images (seconds) */
   defaultImageDuration?: number;
+  /** Default clip duration when adding text (seconds) */
+  defaultTextDuration?: number;
+  /** Default text style applied when creating new text clips */
+  defaultTextStyle?: TextStyle;
 }
 
 /**
@@ -232,4 +246,15 @@ export interface ExportJob {
   progress: number; // 0-1
   outputUrl?: string;
   error?: string;
+}
+
+/**
+ * Text style definition for text clips
+ */
+export interface TextStyle {
+  fontFamily: string; // UI font name (renderer may map to actual font resource)
+  fontSize: number; // In world units for Three.js Text
+  bold: boolean;
+  italic: boolean;
+  color: string; // hex color like #ffffff
 }

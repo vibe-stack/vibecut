@@ -8,6 +8,7 @@ import TrackVolumeAction from '../components/track-volume-action';
 import RemoveTrackAction from '../components/remove-track-action';
 import { useSnapshot } from 'valtio';
 import editorStore from '../../../shared/store';
+import AddTextAction from '../components/add-text-action';
 
 export const TrackActions: React.FC<{ trackId: string }> = ({ trackId }) => {
   const snap = useSnapshot(editorStore);
@@ -19,6 +20,7 @@ export const TrackActions: React.FC<{ trackId: string }> = ({ trackId }) => {
       <div className="text-xs text-white/60 mb-2">Track</div>
       <ActionsRow>
         <AddVideoAction />
+        <AddTextAction />
         <AddTrackAction />
         <ToggleTrackVisibilityAction trackId={track.id} visible={track.visible} />
         <ToggleTrackMuteAction trackId={track.id} muted={track.muted} />

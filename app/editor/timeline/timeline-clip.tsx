@@ -72,7 +72,7 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
         className="h-full flex items-center px-2 text-white text-xs overflow-hidden pointer-events-none"
       >
         <span className="truncate">
-          {asset?.src?.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Clip'}
+          {asset?.type === 'text' ? (clip as any).textContent || 'Text' : (asset?.src?.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Clip')}
         </span>
       </div>
       

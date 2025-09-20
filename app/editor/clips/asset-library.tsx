@@ -62,9 +62,9 @@ export const AssetLibrary: React.FC = () => {
           Drop media files here
         </div>
         
-        {/* Asset List */}
+        {/* Asset List (media only) */}
         <div className="space-y-2">
-          {Object.values(snapshot.assets as Record<string, any>).map((asset: any) => (
+          {Object.values(snapshot.assets as Record<string, any>).filter((a: any) => a.type !== 'text').map((asset: any) => (
             <div
               key={asset.id}
               className="bg-gray-700 rounded p-3 cursor-pointer hover:bg-gray-600 transition-colors"
@@ -104,7 +104,7 @@ export const AssetLibrary: React.FC = () => {
             </div>
           ))}
           
-          {Object.keys(snapshot.assets).length === 0 && (
+          {Object.values(snapshot.assets as Record<string, any>).filter((a: any) => a.type !== 'text').length === 0 && (
             <div className="text-gray-400 text-sm text-center py-8">
               No assets loaded.<br />
               Add media files to get started.
