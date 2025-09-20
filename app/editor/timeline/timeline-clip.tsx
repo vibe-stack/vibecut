@@ -70,8 +70,24 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
       {/* Trim handles */}
       {isSelected && (
         <>
-          <div className="absolute left-0 top-0 w-1.5 h-full bg-white/60 cursor-w-resize" />
-          <div className="absolute right-0 top-0 w-1.5 h-full bg-white/60 cursor-e-resize" />
+          {/* Left handle */}
+          <div
+            className="absolute -left-2 top-0 w-3 h-full bg-white/30 hover:bg-white/50 rounded-l cursor-w-resize"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              onSelect(clip.id, false);
+              onStartDrag(clip.id, 'trim-start', e.clientX);
+            }}
+          />
+          {/* Right handle */}
+          <div
+            className="absolute -right-2 top-0 w-3 h-full bg-white/30 hover:bg-white/50 rounded-r cursor-e-resize"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              onSelect(clip.id, false);
+              onStartDrag(clip.id, 'trim-end', e.clientX);
+            }}
+          />
         </>
       )}
     </div>

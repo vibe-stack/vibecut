@@ -117,6 +117,11 @@ export interface EditorState {
     fps: number;
     quality: number; // 0-1
   };
+
+  // UI preferences/state
+  ui?: {
+    desktopMode: boolean; // user preference to use desktop layout on desktop
+  };
 }
 
 /**

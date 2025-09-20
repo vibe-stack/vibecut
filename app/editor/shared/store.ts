@@ -47,6 +47,10 @@ const createInitialState = (): EditorState => ({
     fps: 30,
     quality: 0.8,
   },
+
+  ui: {
+    desktopMode: false,
+  },
 });
 
 // Create the reactive store
@@ -198,7 +202,7 @@ export const editorActions = {
     const id = uuidv4();
     const duration = clipData.trimEnd ? clipData.trimEnd - clipData.trimStart : asset.duration - clipData.trimStart;
     
-    const newClip: Clip = {
+  const newClip: Clip = {
       // Required fields
       id,
       duration,
@@ -211,7 +215,8 @@ export const editorActions = {
       // Default values that can be overridden
       position: clipData.position || new THREE.Vector3(0, 0, 0),
       rotation: clipData.rotation || new THREE.Euler(0, 0, 0),
-      scale: clipData.scale || new THREE.Vector3(1, 1, 1),
+      // Slightly larger default scale for better visibility in preview
+      scale: clipData.scale || new THREE.Vector3(4, 4, 4),
       opacity: clipData.opacity !== undefined ? clipData.opacity : 1,
       visible: clipData.visible !== undefined ? clipData.visible : true,
       volume: clipData.volume !== undefined ? clipData.volume : 1,
@@ -352,6 +357,13 @@ export const editorActions = {
    */
   setTimelineZoom: (zoom: number) => {
     editorStore.timelineZoom = Math.max(1, Math.min(zoom, 100));
+  },
+
+  /**
+   * Incremental zoom change (e.g., pinch, wheel)
+   */
+  adjustTimelineZoom: (delta: number) => {
+    editorActions.setTimelineZoom(editorStore.timelineZoom + delta);
   },
 
   /**
@@ -500,6 +512,15 @@ export const editorActions = {
    */
   loadSnapshot: (snapshotData: EditorState) => {
     Object.assign(editorStore, snapshotData);
+  },
+
+  // === UI PREFERENCES ===
+  setDesktopMode: (enabled: boolean) => {
+    if (!editorStore.ui) {
+      (editorStore as any).ui = { desktopMode: enabled };
+    } else {
+      editorStore.ui.desktopMode = enabled;
+    }
   },
 };
 

@@ -9,7 +9,7 @@ export const MobileEditor: React.FC = () => {
   return (
     <div className="h-[100dvh] flex flex-col bg-black text-white overflow-hidden">
       <HeaderBar />
-      <div className="flex-1 flex flex-col gap-2 overflow-hidden">
+      <div className="flex-1 flex flex-col gap-2 overflow-hidden min-h-0">
         <PreviewArea />
         <div className="shrink-0">
           <ControlsArea />
