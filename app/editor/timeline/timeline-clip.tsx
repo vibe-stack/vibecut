@@ -81,7 +81,7 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
         <>
           {/* Left handle */}
           <div
-            className="absolute left-0 top-0 w-4 h-full bg-white hover:bg-white/90 cursor-w-resize z-10 flex items-center justify-center rounded-l-xl"
+            className="absolute left-0 top-0 w-4 h-full bg-white/50 hover:bg-white/90 cursor-w-resize z-10 flex items-center justify-center rounded-l-xl"
             onMouseDown={(e: React.MouseEvent) => {
               e.stopPropagation();
               e.preventDefault();
@@ -100,7 +100,7 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
           </div>
           {/* Right handle */}
           <div
-            className="absolute right-0 top-0 w-4 h-full bg-white hover:bg-white/90 cursor-e-resize z-10 flex items-center justify-center rounded-r-xl"
+            className="absolute right-0 top-0 w-4 h-full bg-white/50 hover:bg-white/90 cursor-e-resize z-10 flex items-center justify-center rounded-r-xl"
             onMouseDown={(e: React.MouseEvent) => {
               e.stopPropagation();
               e.preventDefault();
