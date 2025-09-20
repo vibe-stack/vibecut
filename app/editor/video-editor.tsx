@@ -27,25 +27,6 @@ export const VideoEditor: React.FC = () => {
 
   return (
     <div className="h-screen flex flex-col bg-gray-900 text-white">
-      {/* Header */}
-      <div className="bg-gray-800 border-b border-gray-600 px-4 py-2 flex justify-between items-center">
-        <h1 className="text-xl font-bold">VibeCut Video Editor</h1>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-400">{snapshot.projectName}</span>
-          <div className="flex gap-2">
-            <button className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm">
-              File
-            </button>
-            <button className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm">
-              Edit
-            </button>
-            <button className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm">
-              View
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* Main Content */}
       <div className="flex-1 flex">
         {/* Left Sidebar - Assets */}
@@ -67,20 +48,6 @@ export const VideoEditor: React.FC = () => {
         
         {/* Right Sidebar - Properties */}
         <ClipProperties />
-      </div>
-
-      {/* Status Bar */}
-      <div className="bg-gray-800 border-t border-gray-600 px-4 py-2 text-sm text-gray-400 flex justify-between">
-        <div className="flex gap-4">
-          <span>Zoom: {Math.round(snapshot.timelineZoom)}px/s</span>
-          <span>FPS: {snapshot.config.editorFps}</span>
-          <span>Grid: {snapshot.config.gridSnap ? 'On' : 'Off'}</span>
-        </div>
-        <div className="flex gap-4">
-          <span>Assets: {Object.keys(snapshot.assets).length}</span>
-          <span>Tracks: {snapshot.tracks.length}</span>
-          <span>Selected: {snapshot.selectedClipIds.length}</span>
-        </div>
       </div>
     </div>
   );
