@@ -54,6 +54,14 @@ export const editorStore = proxy<EditorState>(createInitialState());
 
 // Store actions and utilities
 export const editorActions = {
+  // Internal helper: recompute zIndex so that array order maps to inverse z (first track highest z)
+  _recomputeTrackZIndices: () => {
+    const count = editorStore.tracks.length;
+    editorStore.tracks.forEach((track, index) => {
+      // Higher z is closer to camera; give first track the largest z
+      track.zIndex = count - index - 1;
+    });
+  },
   // Utility: ensure there's always a selection (defaults to first track)
   ensureSelection: () => {
     const hasSelection = editorStore.selectedClipIds.length > 0 || editorStore.selectedTrackIds.length > 0;
@@ -149,6 +157,7 @@ export const editorActions = {
       clips: [],
       muted: false,
       volume: 1,
+      // Temporary zIndex; will be normalized after insertion
       zIndex: editorStore.tracks.length,
       visible: true,
       locked: false,
@@ -156,6 +165,8 @@ export const editorActions = {
       ...track,
     };
     editorStore.tracks.push(newTrack);
+    // Ensure first track renders on top by inverting z-order
+    editorActions._recomputeTrackZIndices();
     // If nothing is selected (e.g., first track), select this track
     if (editorStore.selectedClipIds.length === 0 && editorStore.selectedTrackIds.length === 0) {
       editorStore.selectedTrackIds.push(id);
@@ -170,6 +181,8 @@ export const editorActions = {
     const trackIndex = editorStore.tracks.findIndex(t => t.id === trackId);
     if (trackIndex !== -1) {
       editorStore.tracks.splice(trackIndex, 1);
+      // Normalize z-order after removal
+      editorActions._recomputeTrackZIndices();
       // Remove from selection if selected
       editorStore.selectedTrackIds = editorStore.selectedTrackIds.filter(id => id !== trackId);
       editorActions.updateTotalDuration();
@@ -194,10 +207,8 @@ export const editorActions = {
     const [removed] = editorStore.tracks.splice(fromIndex, 1);
     editorStore.tracks.splice(toIndex, 0, removed);
     
-    // Update zIndex to match new order
-    editorStore.tracks.forEach((track, index) => {
-      track.zIndex = index;
-    });
+    // Update zIndex to match new order (first track on top)
+    editorActions._recomputeTrackZIndices();
   },
 
   // === CLIP MANAGEMENT ===
@@ -540,8 +551,11 @@ export const editorActions = {
    */
   loadSnapshot: (snapshotData: EditorState) => {
     Object.assign(editorStore, snapshotData);
+    // Normalize z order to expected convention
+    editorActions._recomputeTrackZIndices();
   },
 };
+
 
 // Subscribe to changes for auto-save and other side effects
 subscribe(editorStore, () => {

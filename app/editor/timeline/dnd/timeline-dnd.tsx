@@ -57,7 +57,6 @@ export const useTimelineDnd = ({ pixelsPerSecond, scrollContainer, trackSwitchTh
     const stateRef = useRef<{ startY: number; lastOverTrackId?: string } | null>(null);
 
     const onDragStart = (event: DragStartEvent) => {
-        console.log('DragStart triggered:', event);
         const data = event.active.data.current as TimelineDragData | undefined;
         if (!data || data.type !== 'clip') return;
         setActiveId(data.clipId);
@@ -118,7 +117,6 @@ export const useTimelineDnd = ({ pixelsPerSecond, scrollContainer, trackSwitchTh
         
         targetTrack = s.tracks.find(t => t.id === targetTrackId) as Track | undefined;
         if (!targetTrack) {
-            console.warn('Target track not found, falling back to original track');
             targetTrack = s.tracks.find(t => t.id === data.originTrackId) as Track | undefined;
             if (!targetTrack) return;
         }
@@ -137,7 +135,6 @@ export const useTimelineDnd = ({ pixelsPerSecond, scrollContainer, trackSwitchTh
         
         // Move clip to target track if different from origin
         if (originTrack.id !== targetTrack.id) {
-            console.log(`Moving clip ${clip.id} from track ${originTrack.id} to track ${targetTrack.id}`);
             editorActions.moveClipToTrack(clip.id, targetTrack.id);
         }
 
@@ -180,7 +177,6 @@ export const useTimelineDnd = ({ pixelsPerSecond, scrollContainer, trackSwitchTh
     }, []);
 
     const DndProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-        console.log('DndProvider rendering with sensors:', sensors);
         return (
             <DndContext {...dndContext}>{children}</DndContext>
         );
