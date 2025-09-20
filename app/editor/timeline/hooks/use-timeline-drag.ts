@@ -46,20 +46,23 @@ export const useTimelineDrag = () => {
         break;
         
       case 'trim-start':
-        let newTrimStart = Math.max(0, isDragging.originalClip.trimStart + deltaTime);
-        const maxTrimStart = isDragging.originalClip.trimEnd || 
-          (snapshot.assets[isDragging.originalClip.assetId]?.duration || 0);
-        // Clamp to avoid overlapping left neighbor on the same track
+        const a = snapshot.assets[isDragging.originalClip.assetId];
         const track = snapshot.tracks.find(t => t.clips.some(c => c.id === isDragging.clipId));
         if (track) {
           const proposedStart = isDragging.originalClip.start + deltaTime;
           const clampedStart = clampTrimStartToLeft(track as any, isDragging.originalClip as any, proposedStart);
-          // also reflect the corresponding trimStart shift
-          const appliedDelta = clampedStart - isDragging.originalClip.start;
-          newTrimStart = Math.max(0, isDragging.originalClip.trimStart + appliedDelta);
-          if (newTrimStart < maxTrimStart) {
+          if (a && a.type === 'video') {
+            let newTrimStart = Math.max(0, isDragging.originalClip.trimStart + (clampedStart - isDragging.originalClip.start));
+            const maxTrimStart = isDragging.originalClip.trimEnd || a.duration;
+            if (newTrimStart < maxTrimStart) {
+              editorActions.updateClip(isDragging.clipId, {
+                trimStart: newTrimStart,
+                start: clampedStart,
+              });
+            }
+          } else {
+            // Image: no trimStart, just move left edge (start)
             editorActions.updateClip(isDragging.clipId, {
-              trimStart: newTrimStart,
               start: clampedStart,
             });
           }
@@ -68,21 +71,34 @@ export const useTimelineDrag = () => {
         
       case 'trim-end':
         const asset = snapshot.assets[isDragging.originalClip.assetId];
-        const maxDuration = asset?.duration || 0;
-        let newTrimEnd = Math.min(maxDuration, 
-          (isDragging.originalClip.trimEnd || maxDuration) + deltaTime);
-        // Clamp to avoid overlapping right neighbor on the same track
-        const track2 = snapshot.tracks.find(t => t.clips.some(c => c.id === isDragging.clipId));
-        if (track2) {
-          const proposedEnd = isDragging.originalClip.start + (newTrimEnd - isDragging.originalClip.trimStart);
-          const clampedEnd = clampTrimEndToRight(track2 as any, isDragging.originalClip as any, proposedEnd);
-          newTrimEnd = isDragging.originalClip.trimStart + (clampedEnd - isDragging.originalClip.start);
-        }
-        if (newTrimEnd > isDragging.originalClip.trimStart) {
-          editorActions.updateClip(isDragging.clipId, {
-            trimEnd: newTrimEnd,
-            end: isDragging.originalClip.start + (newTrimEnd - isDragging.originalClip.trimStart),
-          });
+        if (asset && asset.type === 'video') {
+          const maxDuration = asset.duration || 0;
+          let newTrimEnd = Math.min(maxDuration, 
+            (isDragging.originalClip.trimEnd || maxDuration) + deltaTime);
+          const track2 = snapshot.tracks.find(t => t.clips.some(c => c.id === isDragging.clipId));
+          if (track2) {
+            const proposedEnd = isDragging.originalClip.start + (newTrimEnd - isDragging.originalClip.trimStart);
+            const clampedEnd = clampTrimEndToRight(track2 as any, isDragging.originalClip as any, proposedEnd);
+            newTrimEnd = isDragging.originalClip.trimStart + (clampedEnd - isDragging.originalClip.start);
+          }
+          if (newTrimEnd > isDragging.originalClip.trimStart) {
+            editorActions.updateClip(isDragging.clipId, {
+              trimEnd: newTrimEnd,
+              end: isDragging.originalClip.start + (newTrimEnd - isDragging.originalClip.trimStart),
+            });
+          }
+        } else {
+          // Image: change the clip end directly, clamp to avoid overlap
+          const track2 = snapshot.tracks.find(t => t.clips.some(c => c.id === isDragging.clipId));
+          if (track2) {
+            const proposedEnd = isDragging.originalClip.end + deltaTime;
+            const clampedEnd = clampTrimEndToRight(track2 as any, isDragging.originalClip as any, proposedEnd);
+            if (clampedEnd > isDragging.originalClip.start) {
+              editorActions.updateClip(isDragging.clipId, {
+                end: clampedEnd,
+              });
+            }
+          }
         }
         break;
     }

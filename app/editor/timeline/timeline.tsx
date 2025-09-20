@@ -58,7 +58,7 @@ export const Timeline: React.FC<{ scrollContainer?: HTMLElement | null }> = ({ s
         editorActions.addClip(targetTrack.id, {
           assetId: data.assetId,
           start: dropTime,
-          end: dropTime + asset.duration,
+          end: dropTime + (asset.type === 'video' ? asset.duration : (snapshot.config.defaultImageDuration || 3)),
           trimStart: 0,
           trimEnd: null,
           position: new THREE.Vector3(0, 0, 0),

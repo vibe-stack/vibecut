@@ -4,7 +4,7 @@ import editorStore, { editorActions } from '../shared/store';
 import { useFileUpload } from './hooks/use-file-upload';
 
 /**
- * Asset library component for managing video files
+ * Asset library component for managing media files (video + image)
  */
 export const AssetLibrary: React.FC = () => {
   const snapshot = useSnapshot(editorStore);
@@ -40,14 +40,14 @@ export const AssetLibrary: React.FC = () => {
           onClick={handleAddAsset}
           className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded mb-4 transition-colors"
         >
-          Add Video Files
+          Add Media Files
         </button>
         
         {/* File Input */}
         <input
           ref={fileInputRef}
           type="file"
-          accept="video/*"
+          accept="video/*,image/*"
           multiple
           className="hidden"
           onChange={handleFileInputChange}
@@ -59,7 +59,7 @@ export const AssetLibrary: React.FC = () => {
           onDrop={handleDrop}
           className="border-2 border-dashed border-gray-600 rounded p-4 mb-4 text-center text-gray-400 hover:border-gray-500 transition-colors"
         >
-          Drop video files here
+          Drop media files here
         </div>
         
         {/* Asset List */}
@@ -87,8 +87,12 @@ export const AssetLibrary: React.FC = () => {
               </div>
               
               <div className="text-xs text-gray-400 space-y-1">
-                <div>Duration: {asset.duration.toFixed(2)}s</div>
-                <div>FPS: {asset.fps}</div>
+                {asset.type === 'video' && (
+                  <>
+                    <div>Duration: {asset.duration.toFixed(2)}s</div>
+                    <div>FPS: {asset.fps}</div>
+                  </>
+                )}
                 {asset.width && asset.height && (
                   <div>Size: {asset.width}×{asset.height}</div>
                 )}
@@ -103,7 +107,7 @@ export const AssetLibrary: React.FC = () => {
           {Object.keys(snapshot.assets).length === 0 && (
             <div className="text-gray-400 text-sm text-center py-8">
               No assets loaded.<br />
-              Add video files to get started.
+              Add media files to get started.
             </div>
           )}
         </div>

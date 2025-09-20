@@ -1,20 +1,34 @@
 import * as THREE from 'three';
 
 /**
- * A video asset that can be used in clips
+ * Media assets: video or image
  */
-export interface Asset {
+export type MediaType = 'video' | 'image';
+
+export interface BaseAsset {
   id: string;
+  type: MediaType;
   src: string; // URL or file path
-  duration: number; // Duration in seconds
-  fps: number; // Frames per second of the source video
-  video: HTMLVideoElement | null; // Loaded video element for texture
-  width?: number; // Video width in pixels
-  height?: number; // Video height in pixels
+  width?: number;
+  height?: number;
   aspectRatio?: number; // width / height
   loadState: 'loading' | 'loaded' | 'error';
   error?: string; // Error message if loading failed
 }
+
+export interface VideoAsset extends BaseAsset {
+  type: 'video';
+  duration: number; // Duration in seconds
+  fps: number; // Frames per second of the source video
+  video: HTMLVideoElement | null; // Loaded video element for texture
+}
+
+export interface ImageAsset extends BaseAsset {
+  type: 'image';
+  image: HTMLImageElement | null; // Loaded image element for texture
+}
+
+export type Asset = VideoAsset | ImageAsset;
 
 /**
  * A video clip placed on a track
@@ -24,9 +38,15 @@ export interface Clip {
   assetId: string; // Reference to the asset
   start: number; // Start time on timeline (seconds)
   end: number; // End time on timeline (seconds)
-  trimStart: number; // Trim start from asset (seconds, default: 0)
-  trimEnd: number | null; // Trim end from asset (seconds, null = asset.duration)
-  duration: number; // Computed duration (trimEnd ? trimEnd - trimStart : asset.duration - trimStart)
+  /**
+   * Video-only: trim from source
+   */
+  trimStart: number; // seconds, default 0 (video only)
+  trimEnd: number | null; // seconds, null = asset.duration (video only)
+  /**
+   * Duration of the clip on timeline. For images it's end-start; for videos it's based on trim.
+   */
+  duration: number;
   
   // 3D positioning for R3F
   position: THREE.Vector3; // 3D position
@@ -40,6 +60,12 @@ export interface Clip {
   // Audio properties
   volume: number; // 0-1, default: 1
   muted: boolean; // Individual clip mute
+
+  /**
+   * Image-only: non-destructive adjustments and filter preset, applied per-clip
+   */
+  imageAdjustments?: ImageAdjustments; // Present when asset is image
+  imageFilterPreset?: ImageFilterPreset; // Optional filter preset name
 }
 
 /**
@@ -86,6 +112,8 @@ export interface EditorConfig {
   autoSave: boolean; // Auto-save project state
   gridSnap: boolean; // Snap objects to grid in 3D space
   gridSize: number; // Grid size for 3D positioning
+  /** Default clip duration when dropping/adding images (seconds) */
+  defaultImageDuration?: number;
 }
 
 /**
@@ -157,6 +185,33 @@ export interface VideoMetadata {
     video?: string;
     audio?: string;
   };
+}
+
+/**
+ * Image adjustments and filters
+ */
+export type ImageFilterPreset =
+  | 'none'
+  | 'mono'
+  | 'sepia'
+  | 'film'
+  | 'vintage'
+  | 'cool'
+  | 'warm'
+  | 'pop'
+  | 'fade'
+  | 'dramatic';
+
+export interface ImageAdjustments {
+  brightness: number; // -1..1 (0 = no change)
+  contrast: number;   // -1..1
+  saturation: number; // -1..1
+  sharpen: number;    // 0..1
+  highlights: number; // -1..1 (negative recovers highlights, positive boosts)
+  shadows: number;    // -1..1 (positive lifts shadows)
+  temperature: number; // -1..1 (negative = cooler, positive = warmer)
+  hue: number;        // -180..180 degrees
+  vignette: number;   // 0..1
 }
 
 /**

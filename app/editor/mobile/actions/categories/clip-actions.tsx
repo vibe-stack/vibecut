@@ -7,11 +7,14 @@ import ToggleClipVisibilityAction from '../components/toggle-clip-visibility-act
 import ToggleClipMuteAction from '../components/toggle-clip-mute-action';
 import { useSnapshot } from 'valtio';
 import editorStore from '../../../shared/store';
+import ImageFiltersAction from '../components/image-filters-action';
+import ImageAdjustAction from '../components/image-adjust-action';
 
 export const ClipActions: React.FC<{ clipId: string }> = ({ clipId }) => {
   const snap = useSnapshot(editorStore);
   const clip = snap.tracks.flatMap(t => t.clips).find(c => c.id === clipId);
   if (!clip) return null;
+  const asset = snap.assets[clip.assetId];
 
   return (
     <div className="px-3 pb-3 pt-1">
@@ -22,6 +25,13 @@ export const ClipActions: React.FC<{ clipId: string }> = ({ clipId }) => {
         <ClipOpacityAction clipId={clip.id} opacity={clip.opacity} />
         <ToggleClipVisibilityAction clipId={clip.id} visible={clip.visible} />
         <ToggleClipMuteAction clipId={clip.id} muted={clip.muted} />
+
+        {asset?.type === 'image' && (
+          <>
+            <ImageFiltersAction clipId={clip.id} />
+            <ImageAdjustAction clipId={clip.id} />
+          </>
+        )}
       </ActionsRow>
     </div>
   );

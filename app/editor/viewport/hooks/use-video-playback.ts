@@ -15,7 +15,7 @@ export const useVideoPlayback = (clip: ActiveClip, isActive: boolean) => {
 
   // Set up video texture when video loads
   useEffect(() => {
-    if (asset?.video && asset.loadState === 'loaded') {
+  if (asset && asset.type === 'video' && asset.video && asset.loadState === 'loaded') {
       // Create a unique video element for this clip to avoid conflicts
       const video = document.createElement('video');
       // Attributes must be set before src for Safari/iOS

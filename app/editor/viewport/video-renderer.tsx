@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import editorStore, { editorActions } from '../shared/store';
 import type { Track, ActiveClip } from '../shared/types';
 import { VideoClip } from './video-clip';
+import { ImageClip } from './index';
 
 /**
  * Track layer component that renders all clips in a track
@@ -15,6 +16,7 @@ interface TrackLayerProps {
 }
 
 export const TrackLayer: React.FC<TrackLayerProps> = ({ track, currentTime }) => {
+  const snap = useSnapshot(editorStore);
   return (
     <group position={[0, 0, track.zIndex]} visible={track.visible}>
       {track.clips.map(clip => {
@@ -32,11 +34,11 @@ export const TrackLayer: React.FC<TrackLayerProps> = ({ track, currentTime }) =>
         };
         
         return (
-          <VideoClip
-            key={clip.id}
-            clip={activeClip}
-            isActive={isActive}
-          />
+          (snap.assets[clip.assetId]?.type === 'image') ? (
+            <ImageClip key={clip.id} clip={activeClip} isActive={isActive} />
+          ) : (
+            <VideoClip key={clip.id} clip={activeClip} isActive={isActive} />
+          )
         );
       })}
     </group>

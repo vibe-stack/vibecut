@@ -9,7 +9,8 @@ import type {
   ActiveClip, 
   PlaybackState, 
   EditorConfig,
-  VideoMetadata 
+  VideoMetadata,
+  ImageAdjustments,
 } from './types';
 
 // Initial state factory
@@ -32,6 +33,7 @@ const createInitialState = (): EditorState => ({
     autoSave: true,
     gridSnap: false,
     gridSize: 1,
+    defaultImageDuration: 3,
   },
   
   selectedClipIds: [],
@@ -79,9 +81,17 @@ export const editorActions = {
    */
   addAsset: (asset: Omit<Asset, 'id'>) => {
     const id = uuidv4();
-    const newAsset: Asset = { ...asset, id };
+    const newAsset = { ...asset, id } as Asset;
     editorStore.assets[id] = newAsset;
     return id;
+  },
+
+  /** Convenience wrappers */
+  addVideoAsset: (asset: Omit<Extract<Asset, { type: 'video' }>, 'id'>) => {
+    return editorActions.addAsset(asset as Omit<Asset, 'id'>);
+  },
+  addImageAsset: (asset: Omit<Extract<Asset, { type: 'image' }>, 'id'>) => {
+    return editorActions.addAsset(asset as Omit<Asset, 'id'>);
   },
 
   /**
@@ -132,14 +142,17 @@ export const editorActions = {
 
     const lastEnd = track.clips.reduce((max, c) => Math.max(max, c.end), 0);
     const start = lastEnd;
-    const end = start + asset.duration;
+    const clipDuration = asset.type === 'video'
+      ? asset.duration
+      : editorStore.config.defaultImageDuration || 3;
+    const end = start + clipDuration;
 
     editorActions.addClip(trackId, {
       assetId,
       start,
       end,
       trimStart: 0,
-      trimEnd: null,
+      trimEnd: asset.type === 'video' ? null : null,
       // rely on defaults for transform/visibility/volume
     } as any);
   },
@@ -224,7 +237,9 @@ export const editorActions = {
     if (!asset) throw new Error(`Asset ${clipData.assetId} not found`);
 
     const id = uuidv4();
-    const duration = clipData.trimEnd ? clipData.trimEnd - clipData.trimStart : asset.duration - clipData.trimStart;
+    const duration = asset.type === 'video'
+      ? (clipData.trimEnd ? clipData.trimEnd - clipData.trimStart : (asset.duration - clipData.trimStart))
+      : Math.max(0, clipData.end - clipData.start);
     
   const newClip: Clip = {
       // Required fields
@@ -233,8 +248,8 @@ export const editorActions = {
       assetId: clipData.assetId,
       start: clipData.start,
       end: clipData.end,
-      trimStart: clipData.trimStart,
-      trimEnd: clipData.trimEnd,
+  trimStart: asset.type === 'video' ? clipData.trimStart : 0,
+  trimEnd: asset.type === 'video' ? clipData.trimEnd : null,
       
       // Default values that can be overridden
       position: clipData.position || new THREE.Vector3(0, 0, 0),
@@ -245,6 +260,19 @@ export const editorActions = {
       visible: clipData.visible !== undefined ? clipData.visible : true,
       volume: clipData.volume !== undefined ? clipData.volume : 1,
       muted: clipData.muted !== undefined ? clipData.muted : false,
+      // image-only defaults
+      imageAdjustments: asset.type === 'image' ? {
+        brightness: 0,
+        contrast: 0,
+        saturation: 0,
+        sharpen: 0,
+        highlights: 0,
+        shadows: 0,
+        temperature: 0,
+        hue: 0,
+        vignette: 0,
+      } : undefined,
+      imageFilterPreset: asset.type === 'image' ? 'none' : undefined,
     };
 
     track.clips.push(newClip);
@@ -279,16 +307,53 @@ export const editorActions = {
         Object.assign(clip, updates);
         
         // Recalculate duration if trim values changed
-        if ('trimStart' in updates || 'trimEnd' in updates) {
-          const asset = editorStore.assets[clip.assetId];
-          if (asset) {
+        const asset = editorStore.assets[clip.assetId];
+        if (asset) {
+          if (asset.type === 'video' && ('trimStart' in updates || 'trimEnd' in updates)) {
             clip.duration = clip.trimEnd ? clip.trimEnd - clip.trimStart : asset.duration - clip.trimStart;
+          }
+          if (asset.type === 'image' && ('start' in updates || 'end' in updates)) {
+            clip.duration = Math.max(0, clip.end - clip.start);
           }
         }
         
         editorActions.updateTotalDuration();
         break;
       }
+    }
+  },
+
+  /**
+   * IMAGE-SPECIFIC: update adjustments for an image clip (non-destructive)
+   */
+  setImageAdjustments: (clipId: string, updates: Partial<ImageAdjustments>) => {
+    for (const track of editorStore.tracks) {
+      const clip = track.clips.find(c => c.id === clipId);
+      if (!clip) continue;
+      const asset = editorStore.assets[clip.assetId];
+      if (asset?.type !== 'image') return;
+      clip.imageAdjustments = {
+        ...(clip.imageAdjustments || {
+          brightness: 0, contrast: 0, saturation: 0, sharpen: 0,
+          highlights: 0, shadows: 0, temperature: 0, hue: 0, vignette: 0,
+        }),
+        ...updates,
+      };
+      break;
+    }
+  },
+
+  /**
+   * IMAGE-SPECIFIC: set/remove a preset filter for an image clip
+   */
+  setImageFilterPreset: (clipId: string, preset: Clip['imageFilterPreset']) => {
+    for (const track of editorStore.tracks) {
+      const clip = track.clips.find(c => c.id === clipId);
+      if (!clip) continue;
+      const asset = editorStore.assets[clip.assetId];
+      if (asset?.type !== 'image') return;
+      clip.imageFilterPreset = preset;
+      break;
     }
   },
 

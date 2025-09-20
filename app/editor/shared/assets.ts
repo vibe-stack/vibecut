@@ -1,4 +1,5 @@
 import { editorActions } from './store';
+import { ref } from 'valtio';
 import type { Asset, VideoMetadata } from './types';
 
 /**
@@ -62,13 +63,14 @@ export const loadVideoAsset = async (
     const assetName = name || (typeof src === 'string' ? src.split('/').pop() || 'Video Asset' : src.name);
     
     // Add asset to store with loading state
-    const assetId = editorActions.addAsset({
+    const assetId = editorActions.addVideoAsset({
+      type: 'video',
       src: url,
       duration: 0,
       fps: 30,
       video: null,
       loadState: 'loading',
-    });
+    } as any);
 
     const handleLoadedMetadata = async () => {
       try {
@@ -81,9 +83,9 @@ export const loadVideoAsset = async (
           width: metadata.width,
           height: metadata.height,
           aspectRatio: metadata.aspectRatio,
-          video,
+          video: ref(video) as any,
           loadState: 'loaded',
-        });
+        } as any);
         // Auto-place as clip at end of preferred track
         editorActions.addAssetAsClip(assetId);
         
@@ -102,7 +104,7 @@ export const loadVideoAsset = async (
       editorActions.updateAsset(assetId, {
         loadState: 'error',
         error: errorMessage,
-      });
+      } as any);
       reject(new Error(errorMessage));
     };
 
@@ -148,13 +150,14 @@ export const loadVideoAssetWithMediaBunny = async (
     const assetName = name || (typeof src === 'string' ? src.split('/').pop() || 'Video Asset' : src.name);
     
     // Add asset to store with loading state
-    const assetId = editorActions.addAsset({
+    const assetId = editorActions.addVideoAsset({
+      type: 'video',
       src: url,
       duration: 0,
       fps: 30,
       video: null,
       loadState: 'loading',
-    });
+    } as any);
 
     try {
       // Use MediaBunny for accurate metadata extraction
@@ -181,9 +184,9 @@ export const loadVideoAssetWithMediaBunny = async (
         width: mediaBunnyMetadata.width || video.videoWidth,
         height: mediaBunnyMetadata.height || video.videoHeight,
         aspectRatio: (mediaBunnyMetadata.width || video.videoWidth) / (mediaBunnyMetadata.height || video.videoHeight),
-        video,
+        video: ref(video) as any,
         loadState: 'loaded',
-      });
+      } as any);
       // Auto-place as clip
       editorActions.addAssetAsClip(assetId);
       
@@ -200,12 +203,67 @@ export const loadVideoAssetWithMediaBunny = async (
 };
 
 /**
+ * Load an image asset from URL or File
+ */
+export const loadImageAsset = async (
+  src: string | File,
+  name?: string
+): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    const url = typeof src === 'string' ? src : URL.createObjectURL(src);
+
+    const assetId = editorActions.addAsset({
+      type: 'image',
+      src: url,
+      image: null,
+      loadState: 'loading',
+    } as any);
+
+    const handleLoad = () => {
+      try {
+        editorActions.updateAsset(assetId, {
+          width: img.naturalWidth,
+          height: img.naturalHeight,
+          aspectRatio: img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : undefined,
+          image: ref(img) as any,
+          loadState: 'loaded',
+        } as any);
+        // Auto-place as clip at end of preferred track
+        editorActions.addAssetAsClip(assetId);
+        resolve(assetId);
+      } catch (error) {
+        editorActions.updateAsset(assetId, {
+          loadState: 'error',
+          error: error instanceof Error ? error.message : 'Failed to load image',
+        });
+        reject(error);
+      }
+    };
+
+    const handleError = () => {
+      const errorMessage = 'Failed to load image';
+      editorActions.updateAsset(assetId, {
+        loadState: 'error',
+        error: errorMessage,
+      });
+      reject(new Error(errorMessage));
+    };
+
+    img.addEventListener('load', handleLoad, { once: true });
+    img.addEventListener('error', handleError, { once: true });
+    img.src = url;
+  });
+};
+
+/**
  * Create a video element for timeline preview
  */
 export const createPreviewVideo = (assetId: string): HTMLVideoElement | null => {
   const snapshot = editorActions.getSnapshot();
   const asset = snapshot.assets[assetId];
-  if (!asset || !asset.video) return null;
+  if (!asset || asset.type !== 'video' || !asset.video) return null;
   
   // Clone the original video for independent playback
   const previewVideo = document.createElement('video');
@@ -265,7 +323,7 @@ export const generateThumbnails = async (
 ): Promise<string[]> => {
   const snapshot = editorActions.getSnapshot();
   const asset = snapshot.assets[assetId];
-  if (!asset || !asset.video) {
+  if (!asset || asset.type !== 'video' || !asset.video) {
     throw new Error('Asset not found or not loaded');
   }
   
@@ -310,6 +368,20 @@ export const isValidVideoFile = (file: File): boolean => {
     'video/x-msvideo', // .avi
   ];
   
+  return validTypes.includes(file.type);
+};
+
+/** Validate image file format */
+export const isValidImageFile = (file: File): boolean => {
+  const validTypes = [
+    'image/png',
+    'image/jpeg',
+    'image/jpg',
+    'image/webp',
+    'image/gif',
+    'image/bmp',
+    'image/svg+xml',
+  ];
   return validTypes.includes(file.type);
 };
 
