@@ -50,8 +50,8 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
 
   return (
     <div
-      className={`absolute h-12 bg-blue-500 border border-blue-600 rounded cursor-pointer select-none transition-colors ${
-        isSelected ? 'ring-2 ring-yellow-400 bg-blue-400' : 'hover:bg-blue-400'
+      className={`absolute h-12 rounded-xl cursor-pointer select-none transition-colors bg-white/10 hover:bg-white/15 ${
+        isSelected ? 'ring-2 ring-white/50' : ''
       }`}
       style={{
         left: `${clipLeft}px`,
@@ -70,8 +70,8 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
       {/* Trim handles */}
       {isSelected && (
         <>
-          <div className="absolute left-0 top-0 w-2 h-full bg-yellow-400 cursor-w-resize opacity-75 hover:opacity-100" />
-          <div className="absolute right-0 top-0 w-2 h-full bg-yellow-400 cursor-e-resize opacity-75 hover:opacity-100" />
+          <div className="absolute left-0 top-0 w-1.5 h-full bg-white/60 cursor-w-resize" />
+          <div className="absolute right-0 top-0 w-1.5 h-full bg-white/60 cursor-e-resize" />
         </>
       )}
     </div>

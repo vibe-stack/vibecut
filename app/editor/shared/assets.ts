@@ -84,6 +84,8 @@ export const loadVideoAsset = async (
           video,
           loadState: 'loaded',
         });
+        // Auto-place as clip at end of preferred track
+        editorActions.addAssetAsClip(assetId);
         
         resolve(assetId);
       } catch (error) {
@@ -182,6 +184,8 @@ export const loadVideoAssetWithMediaBunny = async (
         video,
         loadState: 'loaded',
       });
+      // Auto-place as clip
+      editorActions.addAssetAsClip(assetId);
       
       return assetId;
     } catch (error) {

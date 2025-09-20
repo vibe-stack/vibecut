@@ -45,13 +45,13 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({
   };
   
   return (
-    <div className="relative h-8 bg-gray-700 border-b border-gray-600">
+    <div className="relative h-8 bg-white/5">
       {/* Track header spacer */}
-      <div className="absolute left-0 top-0 w-48 h-full bg-gray-700 border-r border-gray-600" />
+      <div className="absolute left-0 top-0 w-48 h-full bg-white/5" />
       
       {/* Ruler area */}
       <div 
-        className="absolute bg-gray-700"
+        className="absolute bg-transparent"
         style={{ 
           left: '192px',
           top: 0,
@@ -63,7 +63,7 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({
         {minorTicks.map(({ time, x }) => (
           <div
             key={`minor-${time}`}
-            className="absolute top-6 w-px h-2 bg-gray-500"
+            className="absolute top-6 w-px h-2 bg-white/20"
             style={{ left: `${x}px` }}
           />
         ))}
@@ -71,8 +71,8 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({
         {/* Major ticks and labels */}
         {majorTicks.map(({ time, x }) => (
           <div key={`major-${time}`} className="absolute" style={{ left: `${x}px` }}>
-            <div className="w-px h-4 bg-gray-300" />
-            <div className="absolute top-0 left-1 text-xs text-gray-300 whitespace-nowrap">
+            <div className="w-px h-4 bg-white/60" />
+            <div className="absolute top-0 left-1 text-xs text-white/70 whitespace-nowrap">
               {formatTime(time)}
             </div>
           </div>

@@ -2,7 +2,7 @@ import React from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid, Environment } from '@react-three/drei';
 import { useSnapshot } from 'valtio';
-import editorStore, { editorActions } from '../shared/store';
+import editorStore from '../shared/store';
 import { VideoEditorRenderer } from './video-renderer';
 
 /**
@@ -12,7 +12,7 @@ export const VideoViewport: React.FC = () => {
   const snapshot = useSnapshot(editorStore);
 
   return (
-    <div className="flex-1 bg-black relative">
+    <div className="w-full h-full bg-black relative">
       <Canvas
         camera={{ position: [0, 0, 5], fov: 75 }}
         style={{ width: '100%', height: '100%' }}
@@ -54,23 +54,6 @@ export const VideoViewport: React.FC = () => {
         {/* Main video renderer */}
         <VideoEditorRenderer />
       </Canvas>
-      
-      {/* Overlay UI */}
-      <div className="absolute top-4 left-4 text-white bg-black bg-opacity-50 px-3 py-2 rounded">
-        <div className="text-sm">
-          Time: {snapshot.playback.currentTime.toFixed(2)}s / {snapshot.totalDuration.toFixed(2)}s
-        </div>
-        <div className="text-xs text-gray-300">
-          Tracks: {snapshot.tracks.length} | Active Clips: {editorActions.getActiveClips().length}
-        </div>
-      </div>
-      
-      {/* Export/Settings Button */}
-      <div className="absolute top-4 right-4">
-        <button className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded transition-colors">
-          Export Video
-        </button>
-      </div>
     </div>
   );
 };

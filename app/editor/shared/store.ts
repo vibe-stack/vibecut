@@ -87,6 +87,45 @@ export const editorActions = {
     }
   },
 
+  /**
+   * Get preferred track id based on selection (last selected) or first track. Creates one if none exists.
+   */
+  getPreferredTrackId: (): string => {
+    // Use the last selected track if available and exists
+    for (let i = editorStore.selectedTrackIds.length - 1; i >= 0; i--) {
+      const id = editorStore.selectedTrackIds[i];
+      if (editorStore.tracks.find(t => t.id === id)) return id;
+    }
+    // Fallback to first track
+    if (editorStore.tracks.length > 0) return editorStore.tracks[0].id;
+    // Ensure at least one track exists
+    return editorActions.addTrack({ name: 'Video Track 1' });
+  },
+
+  /**
+   * Add a loaded asset as a clip to the preferred track, appended at the end.
+   */
+  addAssetAsClip: (assetId: string) => {
+    const asset = editorStore.assets[assetId];
+    if (!asset || asset.loadState !== 'loaded') return;
+    const trackId = editorActions.getPreferredTrackId();
+    const track = editorStore.tracks.find(t => t.id === trackId);
+    if (!track) return;
+
+    const lastEnd = track.clips.reduce((max, c) => Math.max(max, c.end), 0);
+    const start = lastEnd;
+    const end = start + asset.duration;
+
+    editorActions.addClip(trackId, {
+      assetId,
+      start,
+      end,
+      trimStart: 0,
+      trimEnd: null,
+      // rely on defaults for transform/visibility/volume
+    } as any);
+  },
+
   // === TRACK MANAGEMENT ===
   
   /**
@@ -245,6 +284,32 @@ export const editorActions = {
     }
   },
 
+  /**
+   * Duplicate a clip and place the duplicate right after the original
+   */
+  duplicateClip: (clipId: string) => {
+    for (const track of editorStore.tracks) {
+      const clip = track.clips.find(c => c.id === clipId);
+      if (clip) {
+        const asset = editorStore.assets[clip.assetId];
+        if (!asset) return;
+
+        const id = uuidv4();
+        const duration = clip.duration;
+        const newClip: Clip = {
+          ...clip,
+          id,
+          start: clip.end, // place immediately after
+          end: clip.end + duration,
+        };
+        track.clips.push(newClip);
+        editorActions.updateTotalDuration();
+        return id;
+      }
+    }
+    return undefined;
+  },
+
   // === PLAYBACK CONTROL ===
   
   /**
@@ -374,6 +439,8 @@ export const editorActions = {
     } else {
       editorStore.selectedClipIds.length = 0;
       editorStore.selectedClipIds.push(...clipIds);
+      // Clear track selection when selecting clips exclusively
+      editorStore.selectedTrackIds.length = 0;
     }
   },
 
@@ -392,6 +459,23 @@ export const editorActions = {
   clearSelection: () => {
     editorStore.selectedClipIds.length = 0;
     editorStore.selectedTrackIds.length = 0;
+  },
+
+  /**
+   * Select tracks
+   */
+  selectTracks: (trackIds: string[], append: boolean = false) => {
+    if (append) {
+      const newIds = trackIds.filter(id => !editorStore.selectedTrackIds.includes(id));
+      editorStore.selectedTrackIds.push(...newIds);
+    } else {
+      editorStore.selectedTrackIds.length = 0;
+      editorStore.selectedTrackIds.push(...trackIds);
+    }
+    // Deselect clips when selecting tracks unless appending
+    if (!append) {
+      editorStore.selectedClipIds.length = 0;
+    }
   },
 
   // === PROJECT MANAGEMENT ===

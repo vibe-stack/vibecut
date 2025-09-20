@@ -90,7 +90,7 @@ export const Timeline: React.FC = () => {
   }, []);
   
   return (
-    <div className="bg-gray-800 border-t border-gray-600 overflow-auto max-h-96">
+    <div className="bg-black/40 overflow-auto">
       <div
         ref={timelineRef}
         className="relative"

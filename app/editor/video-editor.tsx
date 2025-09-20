@@ -1,13 +1,8 @@
 import React, { useEffect } from 'react';
 import { useSnapshot } from 'valtio';
 import editorStore, { editorActions } from './shared/store';
-import { VideoViewport } from './viewport/video-viewport';
-import { TimelineControls } from './timeline/controls/timeline-controls';
-import { Timeline } from './timeline/timeline';
-import { AssetLibrary } from './clips/asset-library';
-import { TrackManager } from './clips/track-manager';
-import { ClipProperties } from './clips/clip-properties';
 import { useKeyboardShortcuts } from './timeline/controls/hooks/use-keyboard-shortcuts';
+import MobileEditor from './mobile/mobile-editor';
 
 /**
  * Main video editor interface
@@ -25,32 +20,7 @@ export const VideoEditor: React.FC = () => {
   // Enable keyboard shortcuts
   useKeyboardShortcuts();
 
-  return (
-    <div className="h-screen flex flex-col bg-gray-900 text-white">
-      {/* Main Content */}
-      <div className="flex-1 flex">
-        {/* Left Sidebar - Assets */}
-        <AssetLibrary />
-        
-        {/* Track Manager */}
-        <TrackManager />
-        
-        {/* Center - Video Viewport */}
-        <div className="flex-1 flex flex-col">
-          <VideoViewport />
-          
-          {/* Timeline Controls */}
-          <TimelineControls />
-          
-          {/* Timeline */}
-          <Timeline />
-        </div>
-        
-        {/* Right Sidebar - Properties */}
-        <ClipProperties />
-      </div>
-    </div>
-  );
+  return <MobileEditor />;
 };
 
 /**

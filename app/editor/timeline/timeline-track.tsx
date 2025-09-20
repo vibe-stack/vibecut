@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Track } from '../shared/types';
 import { TimelineClip } from './timeline-clip';
+import { editorActions } from '../shared/store';
 
 interface TimelineTrackProps {
   track: Readonly<Track>;
@@ -23,20 +24,26 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
   
   return (
     <div 
-      className="relative border-b border-gray-600"
+      className="relative"
       style={{ height: `${trackHeight}px` }}
     >
       {/* Track header */}
-      <div className="absolute left-0 top-0 w-48 h-full bg-gray-700 border-r border-gray-600 px-3 py-2 flex flex-col justify-center">
+      <button
+        className="absolute left-0 top-0 w-48 h-full bg-white/5 px-3 py-2 flex flex-col justify-center text-left active:bg-white/10"
+        onClick={(e) => {
+          e.stopPropagation();
+          editorActions.selectTracks([track.id]);
+        }}
+      >
         <div className="text-white text-sm font-medium truncate">{track.name}</div>
         <div className="text-gray-400 text-xs">
           Track {trackIndex + 1} • {track.clips.length} clips
         </div>
-      </div>
+      </button>
       
       {/* Track timeline area */}
       <div 
-        className="absolute bg-gray-800"
+        className="absolute"
         style={{ 
           left: '192px', // Track header width
           top: 0,
