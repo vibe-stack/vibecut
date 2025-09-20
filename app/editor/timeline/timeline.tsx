@@ -8,6 +8,7 @@ import { TimelineRuler } from './timeline-ruler';
 import { TimelineTrack } from './timeline-track';
 import { TimelinePlayhead } from './timeline-playhead';
 import { useScrollSyncedPlayhead } from './hooks/use-scroll-synced-playhead';
+import { useTimelinePinchZoom } from './hooks/use-timeline-pinch-zoom';
 import { useTimelineDnd } from './dnd';
 
 export const Timeline: React.FC<{ scrollContainer?: HTMLElement | null }> = ({ scrollContainer = null }) => {
@@ -23,6 +24,8 @@ export const Timeline: React.FC<{ scrollContainer?: HTMLElement | null }> = ({ s
   
   // Sync playhead to horizontal center when idle (not playing)
   useScrollSyncedPlayhead(timelineRef);
+  // Enable pinch zoom on touch devices
+  useTimelinePinchZoom(timelineRef);
 
   // Handle asset drop onto timeline
   const handleTimelineDrop = useCallback((e: React.DragEvent) => {

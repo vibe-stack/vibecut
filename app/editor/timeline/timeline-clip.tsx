@@ -35,7 +35,7 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
   
   const translate = CSS.Translate.toString(draggable.transform);
   const transform = draggable.isDragging
-    ? `${translate || ''} scale(1.03)`
+    ? `${translate || ''} scale(1.1)`
     : translate || undefined;
   const style = { transform } as React.CSSProperties;
   
@@ -59,6 +59,7 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
       style={{
         left: `${clipLeft}px`,
         width: `${clipWidth}px`,
+        touchAction: 'none',
         ...style,
       }}
       ref={draggable.setNodeRef}
@@ -69,7 +70,8 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
     >
       {/* Clip content */}
       <div 
-        className="h-full flex items-center px-2 pl-8 text-white text-xs overflow-hidden pointer-events-none"
+        className="h-full flex items-center px-2 pl-8 text-white text-xs overflow-hidden"
+        style={{ touchAction: 'none' }}
       >
         <span className="truncate">
           {asset?.type === 'text' ? (clip as any).textContent || 'Text' : (asset?.src?.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Clip')}
@@ -82,6 +84,12 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
           {/* Left handle */}
           <div
             className="absolute left-0 top-0 w-4 h-full bg-white/50 hover:bg-white/90 cursor-w-resize z-10 flex items-center justify-center rounded-l-xl"
+            style={{ touchAction: 'none' }}
+            onPointerDown={(e: React.PointerEvent) => {
+              // Fully block DnD pointer sensor on handle drags
+              e.stopPropagation();
+              e.preventDefault();
+            }}
             onMouseDown={(e: React.MouseEvent) => {
               e.stopPropagation();
               e.preventDefault();
@@ -90,6 +98,7 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
             }}
             onTouchStart={(e: React.TouchEvent) => {
               e.stopPropagation();
+              // prevent scrolling; iOS requires non-passive listeners upstream which we add in the hook
               e.preventDefault();
               onSelect(clip.id, false);
               const touch = e.touches[0];
@@ -101,6 +110,11 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
           {/* Right handle */}
           <div
             className="absolute right-0 top-0 w-4 h-full bg-white/50 hover:bg-white/90 cursor-e-resize z-10 flex items-center justify-center rounded-r-xl"
+            style={{ touchAction: 'none' }}
+            onPointerDown={(e: React.PointerEvent) => {
+              e.stopPropagation();
+              e.preventDefault();
+            }}
             onMouseDown={(e: React.MouseEvent) => {
               e.stopPropagation();
               e.preventDefault();

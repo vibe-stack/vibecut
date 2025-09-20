@@ -17,7 +17,6 @@ export const TrackActions: React.FC<{ trackId: string }> = ({ trackId }) => {
 
   return (
     <div className="px-3 pb-3 pt-1">
-      <div className="text-xs text-white/60 mb-2">Track</div>
       <ActionsRow>
         <AddVideoAction />
         <AddTextAction />

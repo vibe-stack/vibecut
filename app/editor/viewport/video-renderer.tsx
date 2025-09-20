@@ -18,7 +18,7 @@ interface TrackLayerProps {
 export const TrackLayer: React.FC<TrackLayerProps> = ({ track, currentTime }) => {
   const snap = useSnapshot(editorStore);
   return (
-    <group position={[0, 0, track.zIndex]} visible={track.visible}>
+    <group position={[0, 0, 0]} renderOrder={track.zIndex} visible={track.visible}>
       {track.clips.map(clip => {
         // Calculate if this clip is active at current time
         const isActive = currentTime >= clip.start && currentTime < clip.end;
