@@ -138,24 +138,7 @@ export const VideoClip: React.FC<VideoClipProps> = ({ clip, isActive }) => {
     }
   }, [clip.videoTime, isActive, snapshot.playback.isPlaying]);
 
-  // Handle clip activation during playback
-  useEffect(() => {
-    if (videoRef.current && isActive && snapshot.playback.isPlaying) {
-      const video = videoRef.current;
-      
-      // When a clip becomes active during playback, ensure it starts properly
-      console.log(`Activating clip ${clip.id} during playback at time ${clip.videoTime.toFixed(2)}`);
-      video.currentTime = clip.videoTime;
-      video.playbackRate = snapshot.playback.playbackRate;
-      
-      // Start playback immediately
-      video.play().catch(error => {
-        console.warn(`Failed to start playback for newly active clip ${clip.id}:`, error);
-      });
-    }
-  }, [isActive, clip.id]);
-
-  // Continuously sync video time with timeline (this is crucial for smooth playback)
+  // Continuously sync video time with timeline (only for active clips)
   useEffect(() => {
     if (videoRef.current && isActive) {
       const video = videoRef.current;
@@ -164,27 +147,24 @@ export const VideoClip: React.FC<VideoClipProps> = ({ clip, isActive }) => {
         const expectedTime = clip.videoTime;
         
         if (snapshot.playback.isPlaying) {
-          // During playback, check if video is properly playing
+          // During playback, ensure video is playing and in sync
           const actualTime = video.currentTime;
           const timeDrift = Math.abs(expectedTime - actualTime);
           
-          // For new clips or major drift, resync immediately
-          if (timeDrift > 0.5 || video.paused) {
-            console.log(`Syncing clip ${clip.id}: expected ${expectedTime.toFixed(2)}, actual ${actualTime.toFixed(2)}, paused: ${video.paused}`);
+          // Check if video needs resyncing
+          if (timeDrift > 0.3) {
+            console.log(`Resyncing clip ${clip.id}: expected ${expectedTime.toFixed(2)}, actual ${actualTime.toFixed(2)}`);
             video.currentTime = expectedTime;
-            
-            // Ensure video is playing
-            if (video.paused) {
-              video.play().catch(error => {
-                console.warn(`Failed to resume playback for clip ${clip.id}:`, error);
-              });
-            }
+          }
+          
+          // Ensure video is playing
+          if (video.paused) {
+            console.log(`Resuming playback for clip ${clip.id}`);
+            video.play().catch(console.warn);
           }
         } else {
           // When paused, set exact time for frame-accurate positioning
-          if (Math.abs(video.currentTime - expectedTime) > 0.1) {
-            video.currentTime = expectedTime;
-          }
+          video.currentTime = expectedTime;
           
           // Ensure video is paused
           if (!video.paused) {
@@ -193,17 +173,14 @@ export const VideoClip: React.FC<VideoClipProps> = ({ clip, isActive }) => {
         }
       };
       
-      // Sync immediately when clip becomes active
-      syncVideoTime();
-      
-      // Set up periodic sync - more frequent for active clips
-      const syncInterval = setInterval(syncVideoTime, snapshot.playback.isPlaying ? 200 : 100);
+      // Set up periodic sync for active clips
+      const syncInterval = setInterval(syncVideoTime, 100);
       
       return () => {
         clearInterval(syncInterval);
       };
     }
-  }, [clip.videoTime, isActive, snapshot.playback.isPlaying, clip.id]);
+  }, [isActive, snapshot.playback.isPlaying, clip.videoTime, clip.id]);
 
   // Calculate aspect ratio for plane geometry
   const aspectRatio = asset?.aspectRatio || (16 / 9);
@@ -212,11 +189,12 @@ export const VideoClip: React.FC<VideoClipProps> = ({ clip, isActive }) => {
   // Update material properties
   useEffect(() => {
     if (materialRef.current) {
-      materialRef.current.opacity = clip.opacity * (clip.track.visible ? 1 : 0);
-      materialRef.current.transparent = clip.opacity < 1 || !clip.track.visible;
-      materialRef.current.visible = clip.visible && clip.track.visible;
+      const effectiveOpacity = isActive ? clip.opacity : 0;
+      materialRef.current.opacity = effectiveOpacity * (clip.track.visible ? 1 : 0);
+      materialRef.current.transparent = effectiveOpacity < 1 || !clip.track.visible;
+      materialRef.current.visible = isActive && clip.visible && clip.track.visible;
     }
-  }, [clip.opacity, clip.visible, clip.track.visible]);
+  }, [clip.opacity, clip.visible, clip.track.visible, isActive]);
 
   // Cleanup texture on unmount
   useEffect(() => {
