@@ -22,13 +22,14 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
   onStartDrag,
 }) => {
   const trackHeight = 60; // pixels
-  const { setNodeRef } = useDroppable({ id: `track-${track.id}` });
+  const { setNodeRef: setTrackRef } = useDroppable({ id: `track-${track.id}` });
+  const { setNodeRef: setTimelineRef } = useDroppable({ id: `track-timeline-${track.id}` });
   
   return (
     <div 
       className="relative"
       style={{ height: `${trackHeight}px` }}
-      ref={setNodeRef}
+      ref={setTrackRef}
     >
       {/* Track header */}
       <button
@@ -50,6 +51,7 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
           width: `${timelineWidth}px`,
           height: '100%'
         }}
+        ref={setTimelineRef}
       >
         {/* Track clips */}
         {track.clips.map(clip => (

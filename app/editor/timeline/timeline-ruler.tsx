@@ -45,9 +45,9 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({
   };
   
   return (
-    <div className="h-8 bg-white/5 sticky top-0 z-20" style={{ backdropFilter: 'blur(2px)' }}>
+    <div className="h-8 bg-zinc-900/90 backdrop-blur-lg sticky top-0 z-100">
       {/* Track header spacer */}
-      <div className="absolute left-0 top-0 w-48 h-full bg-white/5" />
+      <div className="absolute left-0 top-0 w-48 h-full " />
       
       {/* Ruler area */}
       <div 

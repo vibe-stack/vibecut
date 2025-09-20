@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { useSnapshot } from 'valtio';
 import editorStore from '../shared/store';
 import type { Clip, Track } from '../shared/types';
@@ -33,29 +33,22 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
     data: getDraggableData(clip as any, track.id, 0),
   });
   
-  console.log('Draggable setup:', { 
-    clipId: clip.id, 
-    isDragging: draggable.isDragging, 
-    transform: draggable.transform,
-    hasListeners: !!draggable.listeners,
-    listenersKeys: Object.keys(draggable.listeners || {}),
-    hasSetNodeRef: !!draggable.setNodeRef
-  });
-  
   const translate = CSS.Translate.toString(draggable.transform);
   const transform = draggable.isDragging
     ? `${translate || ''} scale(1.03)`
     : translate || undefined;
   const style = { transform } as React.CSSProperties;
   
-  const handleClipClick = useCallback((e: React.MouseEvent) => {
-    // Handle selection on click, but don't interfere with drag
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    console.log('Clip clicked:', clip.id, 'isDragging:', draggable.isDragging);
+    // Handle selection when clicked
+    e.stopPropagation();
     if (e.shiftKey || e.metaKey) {
       onSelect(clip.id, true);
     } else {
       onSelect(clip.id, false);
     }
-  }, [clip.id, onSelect]);
+  }, [clip.id, onSelect, draggable.isDragging]);
 
   return (
     <div
@@ -72,11 +65,11 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
       {...draggable.listeners}
       {...draggable.attributes}
       title={`${asset?.src?.split('/').pop() || 'Unknown'} (${clip.duration.toFixed(2)}s)`}
+      onClick={handleClick}
     >
-      {/* Clip content - make this handle selection */}
+      {/* Clip content */}
       <div 
-        className="h-full flex items-center px-2 text-white text-xs overflow-hidden"
-        onClick={handleClipClick}
+        className="h-full flex items-center px-2 text-white text-xs overflow-hidden pointer-events-none"
       >
         <span className="truncate">
           {asset?.src?.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Clip'}

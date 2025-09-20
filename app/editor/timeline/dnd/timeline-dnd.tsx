@@ -1,10 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { DndContext, useSensor, useSensors, MouseSensor, PointerSensor, rectIntersection, type DragStartEvent, type DragOverEvent, type DragEndEvent, type DragMoveEvent } from '@dnd-kit/core';
+import { 
+  DndContext, 
+  useSensor, 
+  useSensors, 
+  MouseSensor, 
+  PointerSensor, 
+  rectIntersection, 
+  type DragStartEvent, 
+  type DragOverEvent, 
+  type DragEndEvent, 
+  type DragMoveEvent
+} from '@dnd-kit/core';
 import { useSnapshot } from 'valtio';
 import editorStore, { editorActions } from '../../shared/store';
 import type { Clip, Track } from '../../shared/types';
 import { findNearestFreePlacement } from '../utils/timeline-collision';
-import { useAutoscroll } from './use-autoscroll';
 
 type TimelineDragData = {
     type: 'clip';
@@ -31,12 +41,20 @@ export const useTimelineDnd = ({ pixelsPerSecond, scrollContainer, trackSwitchTh
     } as React.CSSProperties), []);
 
     const sensors = useSensors(
-        useSensor(MouseSensor),
-        useSensor(PointerSensor),
+        useSensor(MouseSensor, {
+            activationConstraint: {
+                distance: 10, // Require 10px movement before drag starts
+            },
+        }),
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                delay: 200, // 200ms delay before drag starts
+                tolerance: 10, // Allow 10px movement during delay
+            },
+        }),
     );
 
-    const { update: updateScroll, stop: stopScroll } = useAutoscroll({ container: scrollContainer });
-    const stateRef = useRef<{ startY: number; lastOverTrackId?: string; _rm?: () => void } | null>(null);
+    const stateRef = useRef<{ startY: number; lastOverTrackId?: string } | null>(null);
 
     const onDragStart = (event: DragStartEvent) => {
         console.log('DragStart triggered:', event);
@@ -45,32 +63,32 @@ export const useTimelineDnd = ({ pixelsPerSecond, scrollContainer, trackSwitchTh
         setActiveId(data.clipId);
         const evt = event.activatorEvent as MouseEvent | PointerEvent | undefined;
         stateRef.current = { startY: (evt as any)?.clientY ?? 0 };
-        const handlePointerMove = (e: MouseEvent | PointerEvent) => updateScroll(e.clientX, e.clientY);
-        window.addEventListener('pointermove', handlePointerMove, { passive: true });
-        stateRef.current._rm = () => window.removeEventListener('pointermove', handlePointerMove as any);
     };
 
     const onDragOver = (event: DragOverEvent) => {
         const { active, over } = event;
         const data = active.data.current as TimelineDragData | undefined;
         if (!data || data.type !== 'clip') return;
+        
         if (over) {
             const overId = String(over.id);
             if (overId.startsWith('track-')) {
+                const targetTrackId = overId.replace('track-', '').replace('timeline-', '');
                 const current = stateRef.current || { startY: 0 };
-                stateRef.current = { ...current };
+                stateRef.current = { ...current, lastOverTrackId: targetTrackId };
             }
         }
     };
 
     const onDragMove = (event: DragMoveEvent) => {
-        const { active, over, delta } = event;
+        const { active, over } = event;
         const data = active.data.current as TimelineDragData | undefined;
         if (!data || data.type !== 'clip') return;
-        if (over && Math.abs(delta.y) >= trackSwitchThreshold) {
+        
+        if (over) {
             const overId = String(over.id);
             if (overId.startsWith('track-')) {
-                const targetTrackId = overId.replace('track-', '');
+                const targetTrackId = overId.replace('track-', '').replace('timeline-', '');
                 const current = stateRef.current || { startY: 0 };
                 stateRef.current = { ...current, lastOverTrackId: targetTrackId };
             }
@@ -78,21 +96,36 @@ export const useTimelineDnd = ({ pixelsPerSecond, scrollContainer, trackSwitchTh
     };
 
     const onDragEnd = (event: DragEndEvent) => {
-        stopScroll();
         const { active, over, delta } = event;
         const data = active.data.current as TimelineDragData | undefined;
         setActiveId(null);
         if (!data || data.type !== 'clip') return;
 
+        // Determine target track: prioritize explicit over element, then fallback to last tracked over, then original track
         let targetTrack: Track | undefined;
-        const explicitOver = over && String(over.id).startsWith('track-') ? String(over.id).replace('track-', '') : undefined;
+        let targetTrackId: string;
+        
+        const explicitOver = over && String(over.id).startsWith('track-') ? String(over.id).replace('track-', '').replace('timeline-', '') : undefined;
         const hinted = stateRef.current?.lastOverTrackId;
-        const targetTrackId = explicitOver || hinted || data.originTrackId;
+        
+        if (explicitOver) {
+            targetTrackId = explicitOver;
+        } else if (hinted) {
+            targetTrackId = hinted;
+        } else {
+            targetTrackId = data.originTrackId;
+        }
+        
         targetTrack = s.tracks.find(t => t.id === targetTrackId) as Track | undefined;
-        if (!targetTrack) return;
+        if (!targetTrack) {
+            console.warn('Target track not found, falling back to original track');
+            targetTrack = s.tracks.find(t => t.id === data.originTrackId) as Track | undefined;
+            if (!targetTrack) return;
+        }
 
         const clip = s.tracks.flatMap(t => t.clips).find(c => c.id === data.clipId) as Clip | undefined;
         if (!clip) return;
+        
         const originalPx = clip.start * pixelsPerSecond;
         const desiredPx = originalPx + delta.x;
         const desiredStart = Math.max(0, desiredPx / pixelsPerSecond);
@@ -101,14 +134,24 @@ export const useTimelineDnd = ({ pixelsPerSecond, scrollContainer, trackSwitchTh
 
         const originTrack = s.tracks.find(t => t.clips.some(c => c.id === clip.id));
         if (!originTrack) return;
-        if (originTrack.id !== targetTrack.id) editorActions.moveClipToTrack(clip.id, targetTrack.id);
+        
+        // Move clip to target track if different from origin
+        if (originTrack.id !== targetTrack.id) {
+            console.log(`Moving clip ${clip.id} from track ${originTrack.id} to track ${targetTrack.id}`);
+            editorActions.moveClipToTrack(clip.id, targetTrack.id);
+        }
 
+        // Update clip position
         editorActions.updateClip(clip.id, { start: snappedStart, end: snappedStart + clip.duration });
+        
+        // Clear state
+        stateRef.current = null;
     };
 
     const dndContext = useMemo(
         () => ({
             sensors,
+            autoScroll: true, // Enable built-in autoscroll
             onDragStart: (e: DragStartEvent) => {
 
                 onDragStart(e);
@@ -132,11 +175,9 @@ export const useTimelineDnd = ({ pixelsPerSecond, scrollContainer, trackSwitchTh
 
     useEffect(() => {
         return () => {
-            const rm = stateRef.current?._rm;
-            if (rm) rm();
-            stopScroll();
+            // Cleanup function
         };
-    }, [stopScroll]);
+    }, []);
 
     const DndProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         console.log('DndProvider rendering with sensors:', sensors);
