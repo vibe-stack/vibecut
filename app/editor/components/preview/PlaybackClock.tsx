@@ -7,6 +7,8 @@ type PlaybackClockState = {
   isPlaying: boolean;
   // low-frequency state tick for React UIs to subscribe without heavy updates
   uiTimeMs: number;
+  // incremented on seek/play to signal immediate sync needed
+  seekVersion: number;
 };
 
 type PlaybackClockContextType = PlaybackClockState & {
@@ -33,6 +35,7 @@ export function PlaybackClock({ children, durationMs: initialDurationMs }: { chi
   const durationMsRef = useRef(initialDurationMs);
   const rafRef = useRef(0);
   const lastNowRef = useRef(0);
+  const seekVersionRef = useRef(0);
 
   useEffect(() => { durationMsRef.current = initialDurationMs; }, [initialDurationMs]);
 
@@ -66,6 +69,7 @@ export function PlaybackClock({ children, durationMs: initialDurationMs }: { chi
     if (!isPlayingRef.current) {
       isPlayingRef.current = true;
       lastNowRef.current = performance.now();
+      seekVersionRef.current += 1; // Signal immediate sync needed
     }
   }, []);
 
@@ -82,6 +86,7 @@ export function PlaybackClock({ children, durationMs: initialDurationMs }: { chi
     timeMsRef.current = clamped;
     setUiTimeMs(clamped);
     lastNowRef.current = performance.now();
+    seekVersionRef.current += 1; // Signal immediate sync needed
   }, []);
 
   const seekSeconds = useCallback((sec: number) => seekMs(sec * 1000), [seekMs]);
@@ -101,6 +106,7 @@ export function PlaybackClock({ children, durationMs: initialDurationMs }: { chi
     timeMs: timeMsRef.current,
     isPlaying: isPlayingRef.current,
     uiTimeMs,
+    seekVersion: seekVersionRef.current,
     play,
     pause,
     toggle,

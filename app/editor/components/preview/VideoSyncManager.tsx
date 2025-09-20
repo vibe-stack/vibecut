@@ -12,6 +12,7 @@ type RegisteredVideo = {
   texture?: THREE.VideoTexture;
   lastSeekAt: number; // ms timestamp
   lastPlayAt: number; // ms timestamp
+  lastSeekVersion: number; // track seek version for immediate sync
 };
 
 type VideoSyncAPI = {
@@ -47,6 +48,7 @@ export function VideoSyncManager({ children }: { children: React.ReactNode }) {
         texture,
         lastSeekAt: 0,
         lastPlayAt: 0,
+        lastSeekVersion: -1,
       });
     },
     unregister(id) {
@@ -72,6 +74,7 @@ export function VideoSyncManager({ children }: { children: React.ReactNode }) {
   useFrame(() => {
     const isPlaying = clock.isPlaying;
     const timeMs = clock.timeMs;
+    const seekVersion = clock.seekVersion;
     const now = performance.now();
 
     registryRef.current.forEach((entry) => {
@@ -92,15 +95,30 @@ export function VideoSyncManager({ children }: { children: React.ReactNode }) {
       const baseSpeed = meta.data.speed || 1;
       const drift = (video.currentTime || 0) - desired; // positive means video ahead
 
+      // Check if immediate sync is needed due to seek/play
+      const needsImmediateSync = entry.lastSeekVersion !== seekVersion;
+      if (needsImmediateSync) {
+        entry.lastSeekVersion = seekVersion;
+        // Force hard sync immediately after seek or play
+        video.currentTime = desired;
+        entry.lastSeekAt = now;
+        if (video.playbackRate !== baseSpeed) video.playbackRate = baseSpeed;
+        if (isPlaying && video.paused) {
+          video.play().catch(() => {});
+          entry.lastPlayAt = now;
+        }
+        return; // Skip other logic this frame
+      }
+
       if (isPlaying) {
         if (video.paused) {
           video.play().catch(() => {});
           entry.lastPlayAt = now;
         }
 
-        // Perform hard seek if we're significantly off, otherwise trust decoder cadence
-        const hardSeekThreshold = 0.25; // seconds
-        const seekCooldownMs = 800; // avoid thrashing seeks
+        // Much more aggressive sync thresholds
+        const hardSeekThreshold = 0.1; // reduced from 0.25
+        const seekCooldownMs = 200; // reduced from 800
 
         const shouldSeekHard = Math.abs(drift) > hardSeekThreshold && (now - entry.lastSeekAt) > seekCooldownMs;
         if (shouldSeekHard) {
@@ -108,10 +126,10 @@ export function VideoSyncManager({ children }: { children: React.ReactNode }) {
           entry.lastSeekAt = now;
           if (video.playbackRate !== baseSpeed) video.playbackRate = baseSpeed;
         } else {
-          // Light touch: minor rate nudge only if mild drift to help converge
-          const correctionThreshold = 0.06; // ~60ms
+          // More aggressive rate correction
+          const correctionThreshold = 0.02; // reduced from 0.06
           if (Math.abs(drift) > correctionThreshold) {
-            const correction = drift > 0 ? 0.985 : 1.015; // slow if ahead, speed if behind
+            const correction = drift > 0 ? 0.95 : 1.05; // more aggressive from 0.985/1.015
             video.playbackRate = baseSpeed * correction;
           } else if (video.playbackRate !== baseSpeed) {
             video.playbackRate = baseSpeed;
