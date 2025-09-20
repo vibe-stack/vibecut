@@ -7,6 +7,7 @@ import { useTimelineSelection } from './hooks/use-timeline-selection';
 import { TimelineRuler } from './timeline-ruler';
 import { TimelineTrack } from './timeline-track';
 import { TimelinePlayhead } from './timeline-playhead';
+import { useScrollSyncedPlayhead } from './hooks/use-scroll-synced-playhead';
 
 export const Timeline: React.FC = () => {
   const snapshot = useSnapshot(editorStore);
@@ -18,20 +19,8 @@ export const Timeline: React.FC = () => {
   const timelineWidth = Math.max(1000, snapshot.totalDuration * snapshot.timelineZoom);
   const timelineHeight = 32 + (snapshot.tracks.length * 60); // Ruler + tracks
   
-  // Handle timeline click for seeking
-  const handleTimelineClick = useCallback((e: React.MouseEvent) => {
-    if (isDragging) return;
-    
-    const rect = timelineRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    
-    const clickX = e.clientX - rect.left - 192; // Account for track header
-    const clickTime = clickX / snapshot.timelineZoom;
-    
-    if (clickTime >= 0 && clickTime <= snapshot.totalDuration) {
-      editorActions.seekTo(clickTime);
-    }
-  }, [isDragging, snapshot.timelineZoom, snapshot.totalDuration]);
+  // Sync playhead to horizontal center when idle (not playing)
+  useScrollSyncedPlayhead(timelineRef);
 
   // Handle asset drop onto timeline
   const handleTimelineDrop = useCallback((e: React.DragEvent) => {
@@ -96,7 +85,6 @@ export const Timeline: React.FC = () => {
         ref={timelineRef}
         className="relative"
         style={{ width: `${192 + timelineWidth}px`, height: `${timelineHeight}px` }}
-        onClick={handleTimelineClick}
         onDrop={handleTimelineDrop}
         onDragOver={handleTimelineDragOver}
       >

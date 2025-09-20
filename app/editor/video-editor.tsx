@@ -35,8 +35,6 @@ export const createDemoProject = async () => {
   
   // Update project name
   editorStore.projectName = 'Demo Project';
-  
-  console.log('Demo project created! Add video files using the Asset Library.');
 };
 
 export default VideoEditor;

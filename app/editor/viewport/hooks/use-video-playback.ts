@@ -36,7 +36,6 @@ export const useVideoPlayback = (clip: ActiveClip, isActive: boolean) => {
       
       // Set up the video for playback
       const handleLoadedData = () => {
-        console.log(`Video loaded for clip ${clip.id}:`, video.duration, 'seconds');
         // Set initial playback rate
         video.playbackRate = snapshot.playback.playbackRate;
         videoRef.current = video;
@@ -51,11 +50,9 @@ export const useVideoPlayback = (clip: ActiveClip, isActive: boolean) => {
       };
       
       const handleError = (e: Event) => {
-        console.error(`Video error for clip ${clip.id}:`, e);
       };
       
       const handleCanPlay = () => {
-        console.log(`Video can play for clip ${clip.id}`);
       };
       
       video.addEventListener('loadeddata', handleLoadedData);
@@ -65,7 +62,6 @@ export const useVideoPlayback = (clip: ActiveClip, isActive: boolean) => {
       // Create texture after video is set up
       const createTextureIfNeeded = () => {
         if (!textureRef.current && videoRef.current) {
-          console.log(`Creating texture for clip ${clip.id}`);
           const texture = new THREE.VideoTexture(videoRef.current);
           texture.minFilter = THREE.LinearFilter;
           texture.magFilter = THREE.LinearFilter;
@@ -149,7 +145,6 @@ export const useVideoPlayback = (clip: ActiveClip, isActive: boolean) => {
       if (isActive && snapshot.playback.isPlaying) {
         // Start playback if not already playing
         if (video.paused) {
-          console.log(`Starting playback for clip ${clip.id} at time ${clip.videoTime.toFixed(2)}`);
           video.currentTime = clip.videoTime;
           video.play().catch(error => {
             console.warn(`Failed to play video for clip ${clip.id}:`, error);
@@ -161,7 +156,6 @@ export const useVideoPlayback = (clip: ActiveClip, isActive: boolean) => {
       } else {
         // Clip is inactive - pause the video but keep element alive
         if (!video.paused) {
-          console.log(`Clip ${clip.id} became inactive - pausing`);
           video.pause();
         }
       }
@@ -175,7 +169,6 @@ export const useVideoPlayback = (clip: ActiveClip, isActive: boolean) => {
       const newRate = snapshot.playback.playbackRate;
       
       if (Math.abs(video.playbackRate - newRate) > 0.01) {
-        console.log(`Updating playback rate for clip ${clip.id}: ${video.playbackRate} -> ${newRate}`);
         video.playbackRate = newRate;
       }
     }
@@ -205,14 +198,12 @@ export const useVideoPlayback = (clip: ActiveClip, isActive: boolean) => {
           
           // Check if video needs resyncing
           if (timeDrift > 0.3) {
-            console.log(`Resyncing clip ${clip.id}: expected ${expectedTime.toFixed(2)}, actual ${actualTime.toFixed(2)}`);
             video.currentTime = expectedTime;
             if (textureRef.current) textureRef.current.needsUpdate = true;
           }
           
           // Ensure video is playing
           if (video.paused) {
-            console.log(`Resuming playback for clip ${clip.id}`);
             video.play().catch(console.warn);
           }
         } else {
