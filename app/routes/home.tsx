@@ -1,6 +1,6 @@
 
 
-import VideoEditor from "../editor/VideoEditor";
+import VideoEditor from "../editor/video-editor";
 
 export function meta() {
   return [
