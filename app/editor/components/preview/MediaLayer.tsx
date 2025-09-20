@@ -5,6 +5,7 @@ import { useSnapshot } from "valtio";
 import * as THREE from "three";
 import type { AnyElement, ImageElement, TextElement, VideoElement } from "../../state/editor.store";
 import { editorStore } from "../../state/editor.store";
+import { usePlaybackClock } from "./PlaybackClock";
 import { VideoSyncManager, useVideoSync } from "./VideoSyncManager";
 
 function isVisible(el: { start: number; end: number }, timeMs: number) {
@@ -79,18 +80,9 @@ function VideoItem({ el }: { el: VideoElement }) {
 
 export function MediaLayer() {
   const snap = useSnapshot(editorStore);
-  const actionRef = useRef<any>(null);
-
-  useEffect(() => {
-    actionRef.current = editorStore.playback.action;
-  }, []);
-
-  const getTimeMs = () => {
-    const action = actionRef.current;
-    return (action?.time || 0) * 1000; // Convert AnimationMixer time to ms
-  };
-
-  const getIsPlaying = () => editorStore.isPlaying;
+  const clock = usePlaybackClock();
+  const getTimeMs = () => clock.timeMs;
+  const getIsPlaying = () => clock.isPlaying;
 
   // Track visible elements and rerender only when the set changes
   const [visibilityVersion, setVisibilityVersion] = useState<number>(0);
@@ -121,7 +113,7 @@ export function MediaLayer() {
     useFrame(() => {
       const el = overlayRef.current;
       if (!el) return;
-      const t = (actionRef.current?.time ?? 0).toFixed(3);
+    const t = (clock.timeMs / 1000).toFixed(3);
       const rows: string[] = [];
       rows.push(`t(action)=${t}s, playing=${editorStore.isPlaying}`);
       const stats = api.getStats();

@@ -2,6 +2,8 @@ import { Preview } from "./Preview";
 import { Controls } from "./controls/Controls";
 import { Timeline } from "./timeline/Timeline";
 import { ActionsBar } from "./footer/ActionsBar";
+import { PlaybackClock } from "./preview/PlaybackClock";
+import { editorStore } from "../state/editor.store";
 
 export function EditorScreen() {
   return (
@@ -11,20 +13,22 @@ export function EditorScreen() {
       </header>
 
       <main className="flex-1 flex flex-col">
-        {/* Preview Area - top half */}
-        <section className="relative" style={{ height: "50vh" }}>
-          <Preview />
-        </section>
+        <PlaybackClock durationMs={editorStore.timeline.durationMs}>
+          {/* Preview Area - top half */}
+          <section className="relative" style={{ height: "50vh" }}>
+            <Preview />
+          </section>
 
-        {/* Controls Area */}
-        <section className="px-4 py-2 border-t border-gray-800">
-          <Controls />
-        </section>
+          {/* Controls Area */}
+          <section className="px-4 py-2 border-t border-gray-800">
+            <Controls />
+          </section>
 
-        {/* Tracks Area */}
-        <section className="flex-1 overflow-hidden border-t border-gray-800">
-          <Timeline />
-        </section>
+          {/* Tracks Area */}
+          <section className="flex-1 overflow-hidden border-t border-gray-800">
+            <Timeline />
+          </section>
+        </PlaybackClock>
       </main>
 
       {/* Modifiers & Actions Area */}

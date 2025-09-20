@@ -2,8 +2,8 @@ import React, { createContext, useContext, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { VideoElement } from "../../state/editor.store";
-import { editorStore } from "../../state/editor.store";
 import { computeVideoTime } from "./videoUtils";
+import { usePlaybackClock } from "./PlaybackClock";
 
 type RegisteredVideo = {
   id: string;
@@ -36,6 +36,7 @@ export function useVideoSync() {
 
 export function VideoSyncManager({ children }: { children: React.ReactNode }) {
   const registryRef = useRef<Map<string, RegisteredVideo>>(new Map());
+  const clock = usePlaybackClock();
 
   const api = useMemo<VideoSyncAPI>(() => ({
     register(id, meta, video, texture) {
@@ -56,8 +57,7 @@ export function VideoSyncManager({ children }: { children: React.ReactNode }) {
       if (r) r.meta = meta;
     },
     getStats() {
-      const action = editorStore.playback.action;
-      const timeMs = (action?.time || 0) * 1000;
+      const timeMs = clock.timeMs;
       const out: Array<{ id: string; current: number; desired: number | null; drift: number | null }> = [];
       registryRef.current.forEach((entry) => {
         const desired = computeVideoTime(entry.meta, timeMs);
@@ -70,9 +70,8 @@ export function VideoSyncManager({ children }: { children: React.ReactNode }) {
 
   // Single master sync loop
   useFrame(() => {
-    const action = editorStore.playback.action;
-    const isPlaying = editorStore.isPlaying;
-    const timeMs = (action?.time || 0) * 1000;
+    const isPlaying = clock.isPlaying;
+    const timeMs = clock.timeMs;
     const now = performance.now();
 
     registryRef.current.forEach((entry) => {

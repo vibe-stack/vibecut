@@ -2,7 +2,7 @@ import { useMemo, useRef, useCallback } from "react";
 import { useSnapshot } from "valtio";
 import { EditorActions, editorStore, getElementById } from "../../state/editor.store";
 import { millisecondsToTimecode, millisecondsToPx } from "../../utils/time";
-import { usePlaybackTime } from "../../hooks/usePlaybackTime";
+import { usePlaybackClock } from "../preview/PlaybackClock";
 
 const ROW_H = 40;
 
@@ -11,19 +11,19 @@ function TimeRuler() {
   const { durationMs, pixelsPerSecond } = snap.timeline;
   const seconds = Math.ceil(durationMs / 1000);
   const marks = useMemo(() => new Array(seconds).fill(0).map((_, i) => i), [seconds]);
-  const timeMs = usePlaybackTime();
+  const { uiTimeMs: timeMs, seekSeconds } = usePlaybackClock();
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const box = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const x = e.clientX - box.left;
     const sec = x / pixelsPerSecond;
-    EditorActions.setPlaybackSeconds(sec);
+    seekSeconds(sec);
   }, [pixelsPerSecond]);
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.buttons !== 1) return;
     const box = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const x = e.clientX - box.left;
     const sec = x / pixelsPerSecond;
-    EditorActions.setPlaybackSeconds(sec);
+    seekSeconds(sec);
   }, [pixelsPerSecond]);
 
   return (

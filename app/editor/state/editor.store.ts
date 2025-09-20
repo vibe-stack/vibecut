@@ -1,5 +1,6 @@
 import { proxy } from "valtio";
 import * as THREE from 'three/webgpu'
+import { PlaybackClockAPI } from "../components/preview/PlaybackClockAPI";
 export type MediaType = "video" | "image" | "text";
 export type AudioType = "audio";
 export type ElementType = MediaType | AudioType;
@@ -119,24 +120,15 @@ export const editorStore = proxy<EditorState>({
 export const EditorActions = {
   play() {
     editorStore.isPlaying = true;
-    try {
-      const action = editorStore.playback.action;
-      if (action) action.paused = false;
-    } catch {}
+    PlaybackClockAPI.play();
   },
   pause() {
     editorStore.isPlaying = false;
-    try {
-      const action = editorStore.playback.action;
-      if (action) action.paused = true;
-    } catch {}
+    PlaybackClockAPI.pause();
   },
   togglePlay() {
     editorStore.isPlaying = !editorStore.isPlaying;
-    try {
-      const action = editorStore.playback.action;
-      if (action) action.paused = !action.paused;
-    } catch {}
+    PlaybackClockAPI.toggle();
   },
   setCurrentTime(ms: number) {
     const max = editorStore.timeline.durationMs;
@@ -207,14 +199,9 @@ export const EditorActions = {
     return el.id;
   },
   setPlaybackSeconds(sec: number) {
-    const mixer: any = editorStore.playback.mixer;
-    const action: any = editorStore.playback.action;
     const max = editorStore.timeline.durationMs / 1000;
     const t = Math.max(0, Math.min(sec, max));
-    try {
-      if (mixer && typeof mixer.setTime === "function") mixer.setTime(t);
-      if (action) action.time = t;
-    } catch {}
+    PlaybackClockAPI.seekSeconds(t);
   },
   moveElement(id: string, deltaMs: number) {
     const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(v, max));
