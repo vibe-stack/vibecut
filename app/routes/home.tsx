@@ -1,12 +1,14 @@
-import { EditorScreen } from "../editor/components/EditorScreen";
+
+
+import VideoEditor from "../editor/VideoEditor";
 
 export function meta() {
   return [
-    { title: "New React Router App" },
-    { name: "description", content: "Welcome to React Router!" },
+    { title: "VibeCut - Video Editor" },
+    { name: "description", content: "Professional video editing in 3D space" },
   ];
 }
 
 export default function Home() {
-  return <EditorScreen />;
+  return <VideoEditor />;
 }
