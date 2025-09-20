@@ -1,10 +1,10 @@
-import React, { useMemo, useRef, useEffect, useState } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import { useSnapshot } from 'valtio';
 import * as THREE from 'three';
 import type { Mesh } from 'three';
 import editorStore, { editorActions } from '../shared/store';
 import type { ActiveClip } from '../shared/types';
-import { Line } from '@react-three/drei';
+import { SelectionOverlay } from './selection-overlay';
 import { useImageMaterial } from './hooks';
 import type { ImageAsset } from '../shared/types';
 
@@ -30,9 +30,6 @@ export const ImageClip: React.FC<ImageClipProps> = ({ clip, isActive }) => {
   const planeArgs: [number, number] = [aspectRatio, 1];
 
   const isSelected = snap.selectedClipIds.includes(clip.id);
-
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragMode, setDragMode] = useState<'resize' | 'rotate' | null>(null);
 
   // Visibility & opacity
   useEffect(() => {
@@ -86,57 +83,6 @@ export const ImageClip: React.FC<ImageClipProps> = ({ clip, isActive }) => {
     if (!isSelected) editorActions.selectClips([clip.id]);
   };
 
-  // Resize/Rotate handlers (same as VideoClip for consistency)
-  const startResize = (e: any) => {
-    e.stopPropagation();
-    setIsDragging(true);
-    setDragMode('resize');
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startScale = clip.scale.clone();
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const deltaX = (e.clientX - startX) * 0.005;
-      const deltaY = (startY - e.clientY) * 0.005;
-      const newScale = new THREE.Vector3(
-        Math.max(0.1, startScale.x + deltaX),
-        Math.max(0.1, startScale.y + deltaY),
-        startScale.z
-      );
-      editorActions.updateClip(clip.id, { scale: newScale });
-    };
-
-    const handleMouseUp = () => {
-      setIsDragging(false);
-      setDragMode(null);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  };
-
-  const startRotate = (e: any) => {
-    e.stopPropagation();
-    setIsDragging(true);
-    setDragMode('rotate');
-    const startX = e.clientX;
-    const startRotation = clip.rotation.z;
-    const handleMouseMove = (e: MouseEvent) => {
-      const deltaX = (e.clientX - startX) * 0.01;
-      const newRotation = new THREE.Euler(clip.rotation.x, clip.rotation.y, startRotation + deltaX);
-      editorActions.updateClip(clip.id, { rotation: newRotation });
-    };
-    const handleMouseUp = () => {
-      setIsDragging(false);
-      setDragMode(null);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  };
-
   const { halfW, halfH } = useMemo(() => {
     const baseW = planeArgs[0];
     const baseH = planeArgs[1];
@@ -162,43 +108,13 @@ export const ImageClip: React.FC<ImageClipProps> = ({ clip, isActive }) => {
         )}
       </mesh>
 
-      {isSelected && isActive && clip.visible && clip.track.visible && (
-        <group>
-          <Line
-            points={[
-              [-halfW, -halfH, 0.001],
-              [ halfW, -halfH, 0.001],
-              [ halfW,  halfH, 0.001],
-              [-halfW,  halfH, 0.001],
-              [-halfW, -halfH, 0.001],
-            ]}
-            color="#00e5ff"
-            lineWidth={2}
-          />
-          {/* Corners */}
-          <mesh position={[halfW, halfH, 0.002]} onPointerDown={startResize}>
-            <circleGeometry args={[0.05, 16]} />
-            <meshBasicMaterial color="#ffffff" />
-          </mesh>
-          <mesh position={[-halfW, halfH, 0.002]} onPointerDown={startResize}>
-            <circleGeometry args={[0.05, 16]} />
-            <meshBasicMaterial color="#ffffff" />
-          </mesh>
-          <mesh position={[halfW, -halfH, 0.002]} onPointerDown={startResize}>
-            <circleGeometry args={[0.05, 16]} />
-            <meshBasicMaterial color="#ffffff" />
-          </mesh>
-          <mesh position={[-halfW, -halfH, 0.002]} onPointerDown={startResize}>
-            <circleGeometry args={[0.05, 16]} />
-            <meshBasicMaterial color="#ffffff" />
-          </mesh>
-          {/* Rotation handle */}
-          <mesh position={[0, halfH + 0.15, 0.002]} onPointerDown={startRotate}>
-            <circleGeometry args={[0.05, 16]} />
-            <meshBasicMaterial color="#ffcc00" />
-          </mesh>
-        </group>
-      )}
+      {/* Selection overlay */}
+      <SelectionOverlay
+        clip={clip}
+        halfWidth={halfW}
+        halfHeight={halfH}
+        isVisible={isSelected && isActive && clip.visible && clip.track.visible}
+      />
     </group>
   );
 };

@@ -1,9 +1,10 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { useSnapshot } from 'valtio';
 import * as THREE from 'three';
 import editorStore, { editorActions } from '../shared/store';
 import type { ActiveClip } from '../shared/types';
-import { Line, Text } from '@react-three/drei';
+import { Text } from '@react-three/drei';
+import { SelectionOverlay } from './selection-overlay';
 import { computeTextAnimationProps } from './animations';
 
 interface TextClipProps {
@@ -26,46 +27,6 @@ export const TextClip: React.FC<TextClipProps> = ({ clip, isActive }) => {
     const h = baseH * clip.scale.y;
     return { halfW: w / 2, halfH: h / 2 };
   }, [baseW, baseH, clip.scale.x, clip.scale.y]);
-
-  const [dragMode, setDragMode] = useState<'resize' | 'rotate' | null>(null);
-
-  const startResize = (e: any) => {
-    e.stopPropagation();
-    setDragMode('resize');
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startScale = clip.scale.clone();
-    const handleMouseMove = (e: MouseEvent) => {
-      const dx = (e.clientX - startX) * 0.005;
-      const dy = (startY - e.clientY) * 0.005;
-      editorActions.updateClip(clip.id, { scale: new THREE.Vector3(Math.max(0.1, startScale.x + dx), Math.max(0.1, startScale.y + dy), startScale.z) });
-    };
-    const handleMouseUp = () => {
-      setDragMode(null);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  };
-
-  const startRotate = (e: any) => {
-    e.stopPropagation();
-    setDragMode('rotate');
-    const startX = e.clientX;
-    const startRot = clip.rotation.z;
-    const handleMouseMove = (e: MouseEvent) => {
-      const dx = (e.clientX - startX) * 0.01;
-      editorActions.updateClip(clip.id, { rotation: new THREE.Euler(clip.rotation.x, clip.rotation.y, startRot + dx) });
-    };
-    const handleMouseUp = () => {
-      setDragMode(null);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  };
 
   const handleSelect = (e: any) => {
     e.stopPropagation();
@@ -112,41 +73,13 @@ export const TextClip: React.FC<TextClipProps> = ({ clip, isActive }) => {
         </Text>
       </group>
 
-      {isSelected && isActive && clip.visible && clip.track.visible && (
-        <group>
-          <Line
-            points={[
-              [-halfW, -halfH, 0.001],
-              [ halfW, -halfH, 0.001],
-              [ halfW,  halfH, 0.001],
-              [-halfW,  halfH, 0.001],
-              [-halfW, -halfH, 0.001],
-            ]}
-            color="#00e5ff"
-            lineWidth={2}
-          />
-          <mesh position={[halfW, halfH, 0.002]} onPointerDown={startResize}>
-            <circleGeometry args={[0.05, 16]} />
-            <meshBasicMaterial color="#ffffff" />
-          </mesh>
-          <mesh position={[-halfW, halfH, 0.002]} onPointerDown={startResize}>
-            <circleGeometry args={[0.05, 16]} />
-            <meshBasicMaterial color="#ffffff" />
-          </mesh>
-          <mesh position={[halfW, -halfH, 0.002]} onPointerDown={startResize}>
-            <circleGeometry args={[0.05, 16]} />
-            <meshBasicMaterial color="#ffffff" />
-          </mesh>
-          <mesh position={[-halfW, -halfH, 0.002]} onPointerDown={startResize}>
-            <circleGeometry args={[0.05, 16]} />
-            <meshBasicMaterial color="#ffffff" />
-          </mesh>
-          <mesh position={[0, halfH + 0.15, 0.002]} onPointerDown={startRotate}>
-            <circleGeometry args={[0.05, 16]} />
-            <meshBasicMaterial color="#ffcc00" />
-          </mesh>
-        </group>
-      )}
+      {/* Selection overlay */}
+      <SelectionOverlay
+        clip={clip}
+        halfWidth={halfW}
+        halfHeight={halfH}
+        isVisible={isSelected && isActive && clip.visible && clip.track.visible}
+      />
     </group>
   );
 };
