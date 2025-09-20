@@ -1,7 +1,6 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef } from 'react';
 import { useSnapshot } from 'valtio';
-import * as THREE from 'three';
-import editorStore, { editorActions } from '../shared/store';
+import editorStore from '../shared/store';
 import { useTimelineDrag } from './hooks/use-timeline-drag';
 import { useTimelineSelection } from './hooks/use-timeline-selection';
 import { TimelineRuler } from './timeline-ruler';
@@ -27,62 +26,6 @@ export const Timeline: React.FC<{ scrollContainer?: HTMLElement | null }> = ({ s
   // Enable pinch zoom on touch devices
   useTimelinePinchZoom(timelineRef);
 
-  // Handle asset drop onto timeline
-  const handleTimelineDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    
-    try {
-      const data = JSON.parse(e.dataTransfer.getData('application/json'));
-      
-      if (data.type === 'asset' && data.assetId) {
-        const asset = snapshot.assets[data.assetId];
-        if (!asset || asset.loadState !== 'loaded') return;
-        
-        const rect = timelineRef.current?.getBoundingClientRect();
-        if (!rect) return;
-        
-        // Calculate drop position on timeline
-        const dropX = e.clientX - rect.left - 192; // Account for track header
-        const dropY = e.clientY - rect.top;
-        const dropTime = Math.max(0, dropX / snapshot.timelineZoom);
-        
-        // Find target track based on Y position
-        const rulerHeight = 32;
-        const trackHeight = 60;
-        const trackIndex = Math.floor((dropY - rulerHeight) / trackHeight);
-        const targetTrack = snapshot.tracks[trackIndex];
-        
-        if (!targetTrack || trackIndex < 0) {
-          console.warn('Invalid drop target track');
-          return;
-        }
-        
-        // Create clip on the target track
-        editorActions.addClip(targetTrack.id, {
-          assetId: data.assetId,
-          start: dropTime,
-          end: dropTime + (asset.type === 'video' ? asset.duration : (snapshot.config.defaultImageDuration || 3)),
-          trimStart: 0,
-          trimEnd: null,
-          position: new THREE.Vector3(0, 0, 0),
-          rotation: new THREE.Euler(0, 0, 0),
-          scale: new THREE.Vector3(1, 1, 1),
-          opacity: 1,
-          visible: true,
-          volume: 1,
-          muted: false,
-        });
-      }
-    } catch (error) {
-      console.error('Failed to handle timeline drop:', error);
-    }
-  }, [snapshot.assets, snapshot.tracks, snapshot.timelineZoom]);
-
-  const handleTimelineDragOver = useCallback((e: React.DragEvent) => {
-    // Only prevent default for desktop drag events
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-  }, []);
   
   return (
     <div className="bg-transparent">
@@ -91,8 +34,6 @@ export const Timeline: React.FC<{ scrollContainer?: HTMLElement | null }> = ({ s
           ref={timelineRef}
           className="relative"
           style={{ width: `${192 + timelineWidth}px`, height: `${timelineHeight}px` }}
-          onDrop={handleTimelineDrop}
-          onDragOver={handleTimelineDragOver}
         >
         {/* Track header background (below ruler) */}
         <div

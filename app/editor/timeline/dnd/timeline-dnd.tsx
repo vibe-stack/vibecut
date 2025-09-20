@@ -43,11 +43,11 @@ export const useTimelineDnd = ({ pixelsPerSecond, scrollContainer, trackSwitchTh
     } as React.CSSProperties), []);
 
     const sensors = useSensors(
-        useSensor(MouseSensor, {
-            activationConstraint: { distance: 2 },
-        }),
+        // useSensor(MouseSensor, {
+        //     activationConstraint: { distance: 2 },
+        // }),
         useSensor(TouchSensor, {
-            activationConstraint: { distance: 6 }, // small movement to activate; more reliable than press-hold
+            activationConstraint: { distance: 9 }, // small movement to activate; more reliable than press-hold
         }),
     );
 
