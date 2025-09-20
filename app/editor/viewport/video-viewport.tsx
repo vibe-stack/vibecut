@@ -15,11 +15,12 @@ export const VideoViewport: React.FC = () => {
     <div className="w-full h-full bg-black relative">
       <Canvas
         camera={{ position: [0, 0, 5], fov: 75 }}
-        style={{ width: '100%', height: '100%' }}
+        style={{ width: '100%', height: '100%', WebkitTransform: 'translateZ(0)' }}
         gl={{ 
           antialias: true,
           alpha: true,
-          preserveDrawingBuffer: true 
+          preserveDrawingBuffer: true,
+          powerPreference: 'high-performance'
         }}
       >
         {/* 3D Environment */}

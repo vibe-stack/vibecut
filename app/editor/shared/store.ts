@@ -54,6 +54,16 @@ export const editorStore = proxy<EditorState>(createInitialState());
 
 // Store actions and utilities
 export const editorActions = {
+  // Utility: ensure there's always a selection (defaults to first track)
+  ensureSelection: () => {
+    const hasSelection = editorStore.selectedClipIds.length > 0 || editorStore.selectedTrackIds.length > 0;
+    if (!hasSelection) {
+      const firstTrack = editorStore.tracks[0];
+      if (firstTrack) {
+        editorStore.selectedTrackIds.push(firstTrack.id);
+      }
+    }
+  },
   // === ASSET MANAGEMENT ===
   
   /**
@@ -146,6 +156,10 @@ export const editorActions = {
       ...track,
     };
     editorStore.tracks.push(newTrack);
+    // If nothing is selected (e.g., first track), select this track
+    if (editorStore.selectedClipIds.length === 0 && editorStore.selectedTrackIds.length === 0) {
+      editorStore.selectedTrackIds.push(id);
+    }
     return id;
   },
 
@@ -156,7 +170,10 @@ export const editorActions = {
     const trackIndex = editorStore.tracks.findIndex(t => t.id === trackId);
     if (trackIndex !== -1) {
       editorStore.tracks.splice(trackIndex, 1);
+      // Remove from selection if selected
+      editorStore.selectedTrackIds = editorStore.selectedTrackIds.filter(id => id !== trackId);
       editorActions.updateTotalDuration();
+      editorActions.ensureSelection();
     }
   },
 
@@ -232,7 +249,10 @@ export const editorActions = {
       const clipIndex = track.clips.findIndex(c => c.id === clipId);
       if (clipIndex !== -1) {
         track.clips.splice(clipIndex, 1);
+        // Remove from selection if selected
+        editorStore.selectedClipIds = editorStore.selectedClipIds.filter(id => id !== clipId);
         editorActions.updateTotalDuration();
+        editorActions.ensureSelection();
         break;
       }
     }
@@ -289,22 +309,40 @@ export const editorActions = {
    * Duplicate a clip and place the duplicate right after the original
    */
   duplicateClip: (clipId: string) => {
+    const findNextFreeStart = (track: Track, proposedStart: number, duration: number): number => {
+      // Ensure clips are checked in chronological order
+      const sorted = [...track.clips].sort((a, b) => a.start - b.start);
+      let start = Math.max(0, proposedStart);
+      while (true) {
+        const end = start + duration;
+        // find any overlap
+        const overlapping = sorted.find(c => !(end <= c.start || start >= c.end));
+        if (!overlapping) return start;
+        // shift start to the end of overlapping and try again
+        start = overlapping.end;
+      }
+    };
+
     for (const track of editorStore.tracks) {
       const clip = track.clips.find(c => c.id === clipId);
       if (clip) {
         const asset = editorStore.assets[clip.assetId];
-        if (!asset) return;
+        if (!asset) return undefined;
 
         const id = uuidv4();
         const duration = clip.duration;
+        const startCandidate = clip.end; // place right after the source clip initially
+        const start = findNextFreeStart(track, startCandidate, duration);
         const newClip: Clip = {
           ...clip,
           id,
-          start: clip.end, // place immediately after
-          end: clip.end + duration,
+          start,
+          end: start + duration,
         };
         track.clips.push(newClip);
         editorActions.updateTotalDuration();
+        // Select the new clip
+        editorActions.selectClips([id]);
         return id;
       }
     }
@@ -460,6 +498,7 @@ export const editorActions = {
   clearSelection: () => {
     editorStore.selectedClipIds.length = 0;
     editorStore.selectedTrackIds.length = 0;
+    editorActions.ensureSelection();
   },
 
   /**

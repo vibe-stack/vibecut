@@ -4,6 +4,7 @@ import editorStore, { editorActions } from '../shared/store';
 import { Plus, Video, Layers, Copy, Trash2, Eye, EyeOff, Volume2, VolumeX, SlidersHorizontal } from 'lucide-react';
 import { Drawer } from 'vaul';
 import { useFileUpload } from '../clips/hooks/use-file-upload';
+import { useScrollIntoView } from '../timeline/hooks/use-scroll-into-view';
 
 const ActionButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> = ({ children, className = '', ...props }) => (
   <button
@@ -21,6 +22,7 @@ export const ActionsArea: React.FC = () => {
   const selectedTrack = useMemo(() => snap.tracks.find(t => snap.selectedTrackIds.includes(t.id)), [snap.selectedTrackIds, snap.tracks]);
   const selectedClipId = snap.selectedClipIds[0];
   const { fileInputRef, handleFileInputChange, handleAddAsset } = useFileUpload();
+  const { scrollIntoView } = useScrollIntoView();
 
   const openDrawer = (title: string) => {
     setDrawerTitle(title);
@@ -76,6 +78,16 @@ export const ActionsArea: React.FC = () => {
       <div className="px-3 pb-3 pt-1">
         <div className="text-xs text-white/60 mb-2">Track</div>
         <div className="flex items-stretch gap-2 overflow-x-auto no-scrollbar pb-1">
+          {/* Add video and new track actions also available when a track is selected */}
+          <ActionButton onClick={handleAddAsset}>
+            <Video size={18} />
+            <span className="text-[10px] opacity-80">Add video</span>
+          </ActionButton>
+          <ActionButton onClick={() => editorActions.addTrack({ name: 'New Track' })}>
+            <Layers size={18} />
+            <span className="text-[10px] opacity-80">New track</span>
+          </ActionButton>
+
           <ActionButton onClick={() => editorActions.updateTrack(selectedTrack.id, { visible: !isVisible })}>
             {isVisible ? <Eye size={18} /> : <EyeOff size={18} />}
             <span className="text-[10px] opacity-80">{isVisible ? 'Hide' : 'Show'}</span>
@@ -93,6 +105,16 @@ export const ActionsArea: React.FC = () => {
             <span className="text-[10px] opacity-80">Remove</span>
           </ActionButton>
         </div>
+
+        {/* Hidden file input for video upload */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="video/*"
+          className="hidden"
+          onChange={handleFileInputChange}
+        />
 
         <Drawer.Root open={open} onOpenChange={setOpen}>
           <Drawer.Portal>
@@ -128,7 +150,13 @@ export const ActionsArea: React.FC = () => {
       <div className="px-3 pb-3 pt-1">
         <div className="text-xs text-white/60 mb-2">Clip</div>
         <div className="flex items-stretch gap-2 overflow-x-auto no-scrollbar pb-1">
-          <ActionButton onClick={() => editorActions.duplicateClip(clip.id)}>
+          <ActionButton onClick={() => {
+            const id = editorActions.duplicateClip(clip.id);
+            if (id) {
+              // attempt to scroll the new element into view
+              requestAnimationFrame(() => scrollIntoView(`[data-clip-id="${id}"]`));
+            }
+          }}>
             <Copy size={18} />
             <span className="text-[10px] opacity-80">Duplicate</span>
           </ActionButton>

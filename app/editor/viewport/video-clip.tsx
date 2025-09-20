@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { useSnapshot } from 'valtio';
 import * as THREE from 'three';
 import type { Mesh, VideoTexture } from 'three';
+import { useFrame } from '@react-three/fiber';
 import editorStore from '../shared/store';
 import type { ActiveClip } from '../shared/types';
 import { useVideoPlayback } from './hooks/use-video-playback';
@@ -34,7 +35,18 @@ export const VideoClip: React.FC<VideoClipProps> = ({ clip, isActive }) => {
     }
   }, [clip.opacity, clip.visible, clip.track.visible, isActive]);
 
-  if (!asset || !textureRef.current) return null;
+  // Dynamically attach the texture to the material when it becomes available (helps Safari)
+  useFrame(() => {
+    const mat = materialRef.current;
+    const tex = textureRef.current as VideoTexture | null;
+    if (mat && tex && mat.map !== tex) {
+      mat.map = tex;
+      mat.needsUpdate = true;
+    }
+    if (tex) {
+      tex.needsUpdate = true;
+    }
+  });
 
   return (
     <mesh
@@ -47,7 +59,7 @@ export const VideoClip: React.FC<VideoClipProps> = ({ clip, isActive }) => {
       <planeGeometry args={planeArgs} />
       <meshBasicMaterial
         ref={materialRef}
-        map={textureRef.current}
+        // map will be set dynamically when available
         transparent
         opacity={clip.opacity}
         side={THREE.DoubleSide}

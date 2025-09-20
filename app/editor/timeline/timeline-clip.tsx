@@ -53,6 +53,7 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
       className={`absolute h-12 rounded-xl cursor-pointer select-none transition-colors bg-white/10 hover:bg-white/15 ${
         isSelected ? 'ring-2 ring-white/50' : ''
       }`}
+      data-clip-id={clip.id}
       style={{
         left: `${clipLeft}px`,
         width: `${clipWidth}px`,

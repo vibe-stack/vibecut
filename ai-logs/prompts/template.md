@@ -7,3 +7,10 @@ Notes: [any additional information in an unstructured way that the AI should kno
 
 OPTIONAL:
 Sidequest: [additional micro task, unstructured]
+
+
+Guidelines:
+- Colocate files by their features
+- Write small modular files, avoid any big files
+- Prefer to write dedicated, colocated hooks files over inline hooks in react components
+- Use a dark, calming, minimalistic and rounded UI.

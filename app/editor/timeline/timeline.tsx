@@ -85,12 +85,13 @@ export const Timeline: React.FC = () => {
   }, [snapshot.assets, snapshot.tracks, snapshot.timelineZoom]);
 
   const handleTimelineDragOver = useCallback((e: React.DragEvent) => {
+    // Only prevent default for desktop drag events
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
   }, []);
   
   return (
-    <div className="bg-black/40">
+    <div className="bg-transparent">
       <div
         ref={timelineRef}
         className="relative"
@@ -99,6 +100,12 @@ export const Timeline: React.FC = () => {
         onDrop={handleTimelineDrop}
         onDragOver={handleTimelineDragOver}
       >
+        {/* Track header background (below ruler) */}
+        <div
+          className="absolute left-0"
+          style={{ top: `32px`, width: '192px', height: `${timelineHeight - 32}px`, backgroundColor: 'rgba(255,255,255,0.05)' }}
+        />
+
         {/* Timeline ruler */}
         <TimelineRuler
           duration={snapshot.totalDuration}

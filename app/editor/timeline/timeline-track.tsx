@@ -29,16 +29,13 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
     >
       {/* Track header */}
       <button
-        className="absolute left-0 top-0 w-48 h-full bg-white/5 px-3 py-2 flex flex-col justify-center text-left active:bg-white/10"
+        className="absolute left-0 top-0 w-48 h-full bg-transparent hover:bg-white/5 active:bg-white/10 px-3 py-2 flex flex-col justify-center text-left rounded-none"
         onClick={(e) => {
           e.stopPropagation();
           editorActions.selectTracks([track.id]);
         }}
       >
         <div className="text-white text-sm font-medium truncate">{track.name}</div>
-        <div className="text-gray-400 text-xs">
-          Track {trackIndex + 1} • {track.clips.length} clips
-        </div>
       </button>
       
       {/* Track timeline area */}

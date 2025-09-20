@@ -23,10 +23,10 @@ export const TimelinePlayhead: React.FC<TimelinePlayheadProps> = ({
       }}
     >
       {/* Playhead line */}
-      <div className="w-0.5 h-full bg-white/70" />
+  <div className="w-0.5 h-full bg-red-500" />
       
       {/* Playhead handle */}
-      <div className="absolute -top-1 -left-2 w-3 h-3 bg-white/80 rounded-sm pointer-events-none" />
+  <div className="absolute -top-2 -translate-x-1/2 left-0 w-3.5 h-3.5 bg-red-500 rounded-full border border-white/30 pointer-events-none" />
     </div>
   );
 };
