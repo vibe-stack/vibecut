@@ -1,10 +1,11 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Html, Image, Text, useVideoTexture } from "@react-three/drei";
-import { useThree, useFrame } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
 import { useSnapshot } from "valtio";
 import * as THREE from "three";
 import type { AnyElement, ImageElement, TextElement, VideoElement } from "../../state/editor.store";
 import { editorStore } from "../../state/editor.store";
+import { VideoSyncManager, useVideoSync } from "./VideoSyncManager";
 
 function isVisible(el: { start: number; end: number }, timeMs: number) {
   return timeMs >= el.start && timeMs < el.end;
@@ -28,171 +29,67 @@ function ImageItem({ el }: { el: ImageElement }) {
   return <Image url={el.data.src} scale={fitScale()} transparent toneMapped={false} />;
 }
 
-function computeVideoTime(el: VideoElement, timeMs: number) {
-  // Map timeline time to source time considering speed and in/out.
-  if (timeMs < el.start || timeMs >= el.end) return null;
-  const localTimeMs = timeMs - el.start; // milliseconds since element start
-  const speed = el.data.speed || 1;
-  const sourceTimeMs = el.data.in + localTimeMs * speed;
-  const clampedSource = Math.max(el.data.in, Math.min(sourceTimeMs, el.data.out));
-  return clampedSource / 1000; // Convert to seconds for video.currentTime
-}
-
-function VideoItem({ el, getTimeMs, getIsPlaying, onRegisterVideo }: { el: VideoElement; getTimeMs: () => number; getIsPlaying: () => boolean; onRegisterVideo?: (id: string, video: HTMLVideoElement | null) => void }) {
-  const videoReadyRef = useRef(false);
-  const lastSeekTimeRef = useRef(0);
-  const lastDesiredRef = useRef<number | null>(null);
-  const rVFCHandleRef = useRef<number | null>(null);
-  
+// moved to videoUtils.ts
+function VideoItem({ el }: { el: VideoElement }) {
+  const { register, unregister, updateMeta } = useVideoSync();
   const videoTexture = useVideoTexture(el.data.src, {
     start: false,
     muted: true,
-    crossOrigin: "anonymous",
+    crossOrigin: 'anonymous',
     autoplay: false,
     loop: false,
   });
 
-  // Keep video element in sync with timeline time
+  // Configure texture filters once ready
   useEffect(() => {
-    const video = (videoTexture)?.image as HTMLVideoElement | undefined;
-    if (!video) return;
-    
-    const handleLoadedMetadata = () => {
-      videoReadyRef.current = true;
-    };
-    
-    const handleLoadedData = () => {
-      videoReadyRef.current = true;
-    };
-    
-    // Ensure mobile-friendly attributes
-    video.muted = true;
-    (video).playsInline = true;
-    video.preload = "auto";
-    try { video.pause(); } catch {}
-    
-    video.addEventListener('loadedmetadata', handleLoadedMetadata);
-    video.addEventListener('loadeddata', handleLoadedData);
-    
-    // Check if already loaded
-    if (video.readyState >= 1) {
-      videoReadyRef.current = true;
-    }
-
-    // Register for debug overlay
-    try { onRegisterVideo?.(el.id, video); } catch {}
-    
-    return () => {
-      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      video.removeEventListener('loadeddata', handleLoadedData);
-      try { onRegisterVideo?.(el.id, null); } catch {}
-      const cancelRVFC = (video).cancelVideoFrameCallback?.bind(video);
-      if (rVFCHandleRef.current != null && cancelRVFC) cancelRVFC(rVFCHandleRef.current);
-    };
-  }, [videoTexture, el.id, onRegisterVideo]);
-
-  // Configure texture flags for WebGPU video
-  useEffect(() => {
-    const tex = videoTexture as unknown as THREE.VideoTexture | undefined;
+    const tex = videoTexture as THREE.VideoTexture | undefined;
     if (!tex) return;
-    (tex).generateMipmaps = false;
-    (tex).minFilter = THREE.LinearFilter;
-    (tex).magFilter = THREE.LinearFilter;
-    if ((tex).colorSpace !== undefined) {
-      (tex).colorSpace = (THREE).SRGBColorSpace ?? (tex).colorSpace;
-    }
-    (tex).flipY = false;
+    tex.generateMipmaps = false;
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.flipY = false;
   }, [videoTexture]);
 
-  // Drive the video via r3f frame loop - let it play during playback, seek when paused
-  useFrame(() => {
-    const video = (videoTexture)?.image as HTMLVideoElement | undefined;
-    if (!video || !videoReadyRef.current) return;
-    const timeMs = getTimeMs();
-    const desired = computeVideoTime(el, timeMs);
-    if (desired == null) {
-      try { if (!video.paused) video.pause(); } catch {}
-      return;
-    }
-    
-    const isPlaying = getIsPlaying();
-    const drift = Math.abs(video.currentTime - desired);
-    const now = performance.now();
-    const frameTol = 1 / 60; // ~16ms
-    const correctionThreshold = isPlaying ? 0.01 : frameTol; // 100ms during play, 1 frame when paused
+  // Register with sync manager
+  useEffect(() => {
+    const video = (videoTexture?.image as HTMLVideoElement | undefined) ?? null;
+    if (!video) return;
+    // Initialize conservative defaults
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+    video.pause();
+    register(el.id, el, video, videoTexture as any);
+    return () => unregister(el.id);
+  }, [videoTexture, el.id]);
 
-    if (isPlaying) {
-      // Let video play naturally with correct playbackRate
-      const speed = el.data.speed || 1;
-      if (video.playbackRate !== speed) video.playbackRate = speed;
-      if (video.paused) { void video.play().catch(() => {}); }
-      
-      // Only correct significant drift to avoid constant seeking
-      if (drift > correctionThreshold && (now - lastSeekTimeRef.current) > 200) {
-        try {
-          video.currentTime = desired;
-          lastSeekTimeRef.current = now;
-          lastDesiredRef.current = desired;
-        } catch {}
-      }
-    } else {
-      // When paused, seek to exact frame
-      if (drift > correctionThreshold && (now - lastSeekTimeRef.current) > 16) {
-        try {
-          if (!video.paused) video.pause();
-          video.currentTime = desired;
-          lastSeekTimeRef.current = now;
-          lastDesiredRef.current = desired;
-        } catch {}
-      } else {
-        try { if (!video.paused) video.pause(); } catch {}
-      }
-    }
-
-    // Simple texture update
-    const tex = videoTexture;
-    if (typeof (video).requestVideoFrameCallback === 'function') {
-      if (rVFCHandleRef.current == null) {
-        rVFCHandleRef.current = (video).requestVideoFrameCallback(() => {
-          rVFCHandleRef.current = null;
-          if (tex) tex.needsUpdate = true;
-        });
-      }
-    } else {
-      // Fallback: mark for update regularly
-      if (tex) tex.needsUpdate = true;
-    }
-  });
+  // Update meta when element props change (in/out/speed)
+  useEffect(() => {
+    updateMeta(el.id, el);
+  }, [el]);
 
   return (
     <mesh>
-      <planeGeometry args={fitScale().slice(0, 2) as unknown as [number, number]} />
-      <meshBasicMaterial 
-        map={videoTexture} 
-        toneMapped={false} 
-        transparent={false}
-        alphaTest={0}
-      />
+      <planeGeometry args={fitScale().slice(0, 2) as [number, number]} />
+      <meshBasicMaterial map={videoTexture} toneMapped transparent={false} />
     </mesh>
   );
 }
 
 export function MediaLayer() {
   const snap = useSnapshot(editorStore);
-  // Capture the action reference once; it is updated by PlaybackDriver, but we won't store time in Valtio
   const actionRef = useRef<any>(null);
+
   useEffect(() => {
     actionRef.current = editorStore.playback.action;
-  });
+  }, []);
 
-  // Provide a function that reads time in ms directly from the Three action (fast)
   const getTimeMs = () => {
     const action = actionRef.current;
-    const t = action ? action.time : 0;
-    return (t || 0) * 1000;
+    return (action?.time || 0) * 1000; // Convert AnimationMixer time to ms
   };
 
-  // Provide a getter for playing state that does not subscribe the component
   const getIsPlaying = () => editorStore.isPlaying;
 
   // Track visible elements and rerender only when the set changes
@@ -218,35 +115,41 @@ export function MediaLayer() {
     .flatMap((t) => t.elements)
     .filter((el) => isVisible(el, timeForVisibility));
 
-  // Debug overlay: track current videos and times without subscribing to store
-  const debugVideosRef = useRef<Map<string, HTMLVideoElement | null>>(new Map());
-  const onRegisterVideo = (id: string, video: HTMLVideoElement | null) => {
-    debugVideosRef.current.set(id, video);
-  };
-
-  const overlayRef = useRef<HTMLDivElement | null>(null);
-  useFrame(() => {
-    const el = overlayRef.current;
-    if (!el) return;
-    const t = (actionRef.current?.time ?? 0).toFixed(3);
-    const rows: string[] = [];
-    rows.push(`t(action)=${t}s, playing=${editorStore.isPlaying}`);
-    // Map IDs to elements for drift calculation
-  const elementsById = new Map<string, AnyElement>();
-  editorStore.mediaTracks.flatMap((tr) => tr.elements).forEach((e) => elementsById.set(e.id, e));
-    debugVideosRef.current.forEach((v, id) => {
-      if (!v) return;
-      const ct = (v.currentTime ?? 0).toFixed(3);
-      const elx = elementsById.get(id);
-      const desired = elx && elx.type === 'video' ? computeVideoTime(elx, (actionRef.current?.time ?? 0) * 1000) : null;
-      const drift = desired != null ? (desired - (v.currentTime ?? 0)) : null;
-      rows.push(`${id}: video=${ct}s${drift != null ? ` drift=${drift.toFixed(3)}s` : ''}`);
+  function VideoSyncDebugOverlay() {
+    const overlayRef = useRef<HTMLDivElement | null>(null);
+    const api = useVideoSync();
+    useFrame(() => {
+      const el = overlayRef.current;
+      if (!el) return;
+      const t = (actionRef.current?.time ?? 0).toFixed(3);
+      const rows: string[] = [];
+      rows.push(`t(action)=${t}s, playing=${editorStore.isPlaying}`);
+      const stats = api.getStats();
+      stats.forEach((s) => {
+        rows.push(`${s.id}: video=${s.current.toFixed(3)}s${s.drift != null ? ` drift=${s.drift.toFixed(3)}s` : ''}`);
+      });
+      el.textContent = rows.join("\\n");
     });
-    el.textContent = rows.join("\\n");
-  });
+    return (
+      <Html position={[-0.98, 0.5, 0.2]} transform distanceFactor={1}>
+        <div ref={overlayRef} style={{
+          fontFamily: 'monospace',
+          fontSize: 10,
+          color: '#0f0',
+          background: 'rgba(0,0,0,0.6)',
+          padding: '6px 8px',
+          borderRadius: 4,
+          whiteSpace: 'pre',
+          pointerEvents: 'none',
+          userSelect: 'none'
+        }} />
+      </Html>
+    );
+  }
 
   return (
-    <group>
+  <VideoSyncManager>
+  <group>
       <Suspense fallback={null}>
         {visible.map((el, i) => {
           const z = 0.01 * i; // simple stacking
@@ -267,7 +170,7 @@ export function MediaLayer() {
           if (el.type === "video") {
             return (
               <group key={el.id} position={[0, 0, z]}>
-                <VideoItem el={el as unknown as VideoElement} getTimeMs={getTimeMs} getIsPlaying={getIsPlaying} onRegisterVideo={onRegisterVideo} />
+                <VideoItem el={el as unknown as VideoElement} />
               </group>
             );
           }
@@ -275,19 +178,8 @@ export function MediaLayer() {
         })}
       </Suspense>
       {/* Debug overlay in screen space */}
-      <Html position={[-0.98, 0.5, 0.2]} transform distanceFactor={1}>
-        <div ref={overlayRef} style={{
-          fontFamily: 'monospace',
-          fontSize: 10,
-          color: '#0f0',
-          background: 'rgba(0,0,0,0.6)',
-          padding: '6px 8px',
-          borderRadius: 4,
-          whiteSpace: 'pre',
-          pointerEvents: 'none',
-          userSelect: 'none'
-        }} />
-      </Html>
+      <VideoSyncDebugOverlay />
     </group>
+    </VideoSyncManager>
   );
 }
