@@ -69,7 +69,7 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
     >
       {/* Clip content */}
       <div 
-        className="h-full flex items-center px-2 text-white text-xs overflow-hidden pointer-events-none"
+        className="h-full flex items-center px-2 pl-8 text-white text-xs overflow-hidden pointer-events-none"
       >
         <span className="truncate">
           {asset?.type === 'text' ? (clip as any).textContent || 'Text' : (asset?.src?.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Clip')}
@@ -81,24 +81,42 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
         <>
           {/* Left handle */}
           <div
-            className="absolute -left-2 top-0 w-3 h-full bg-white/30 hover:bg-white/50 rounded-l cursor-w-resize z-10"
+            className="absolute left-0 top-0 w-4 h-full bg-white hover:bg-white/90 cursor-w-resize z-10 flex items-center justify-center rounded-l-xl"
             onMouseDown={(e: React.MouseEvent) => {
               e.stopPropagation();
               e.preventDefault();
               onSelect(clip.id, false);
               onStartDrag(clip.id, 'trim-start', e.clientX);
             }}
-          />
+            onTouchStart={(e: React.TouchEvent) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onSelect(clip.id, false);
+              const touch = e.touches[0];
+              onStartDrag(clip.id, 'trim-start', touch.clientX);
+            }}
+          >
+            <div className="w-0.5 h-6 bg-gray-700"></div>
+          </div>
           {/* Right handle */}
           <div
-            className="absolute -right-2 top-0 w-3 h-full bg-white/30 hover:bg-white/50 rounded-r cursor-e-resize z-10"
+            className="absolute right-0 top-0 w-4 h-full bg-white hover:bg-white/90 cursor-e-resize z-10 flex items-center justify-center rounded-r-xl"
             onMouseDown={(e: React.MouseEvent) => {
               e.stopPropagation();
               e.preventDefault();
               onSelect(clip.id, false);
               onStartDrag(clip.id, 'trim-end', e.clientX);
             }}
-          />
+            onTouchStart={(e: React.TouchEvent) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onSelect(clip.id, false);
+              const touch = e.touches[0];
+              onStartDrag(clip.id, 'trim-end', touch.clientX);
+            }}
+          >
+            <div className="w-0.5 h-6 bg-gray-700"></div>
+          </div>
         </>
       )}
     </div>

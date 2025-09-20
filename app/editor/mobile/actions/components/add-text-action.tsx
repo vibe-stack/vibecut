@@ -5,7 +5,9 @@ import { editorActions } from '../../../shared/store';
 
 export const AddTextAction: React.FC = () => {
   const handleClick = () => {
-    editorActions.addTextClip({});
+    editorActions.addTextClip({
+      duration: 15,
+    });
   };
   return (
     <ActionButton onClick={handleClick}>
