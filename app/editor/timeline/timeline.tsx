@@ -7,7 +7,6 @@ import { useTimelineSelection } from './hooks/use-timeline-selection';
 import { TimelineRuler } from './timeline-ruler';
 import { TimelineTrack } from './timeline-track';
 import { TimelinePlayhead } from './timeline-playhead';
-import usePinchZoom from '../mobile/hooks/use-pinch-zoom';
 
 export const Timeline: React.FC = () => {
   const snapshot = useSnapshot(editorStore);
@@ -15,7 +14,6 @@ export const Timeline: React.FC = () => {
   
   const { isDragging, handleStartDrag } = useTimelineDrag();
   const { handleSelectClip } = useTimelineSelection();
-  const { onTouchStart, onTouchMove, onTouchEnd } = usePinchZoom();
   
   const timelineWidth = Math.max(1000, snapshot.totalDuration * snapshot.timelineZoom);
   const timelineHeight = 32 + (snapshot.tracks.length * 60); // Ruler + tracks
@@ -92,7 +90,7 @@ export const Timeline: React.FC = () => {
   }, []);
   
   return (
-    <div className="bg-black/40" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+    <div className="bg-black/40">
       <div
         ref={timelineRef}
         className="relative"

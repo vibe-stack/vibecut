@@ -3,7 +3,6 @@ import { useSnapshot } from 'valtio';
 import editorStore, { editorActions } from './shared/store';
 import { useKeyboardShortcuts } from './timeline/controls/hooks/use-keyboard-shortcuts';
 import MobileEditor from './mobile/mobile-editor';
-import DesktopEditor from './desktop/desktop-editor';
 
 /**
  * Main video editor interface
@@ -21,11 +20,6 @@ export const VideoEditor: React.FC = () => {
   // Enable keyboard shortcuts
   useKeyboardShortcuts();
 
-  // Simple responsive switch: on desktop widths, allow desktop layout if enabled
-  const isDesktop = typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : false;
-  if (isDesktop && snapshot.ui?.desktopMode) {
-    return <DesktopEditor />;
-  }
   return <MobileEditor />;
 };
 

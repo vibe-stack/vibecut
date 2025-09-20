@@ -28,8 +28,10 @@ export const useTimelineDrag = () => {
     }
   }, [snapshot.tracks]);
 
-  const applyDelta = useCallback((deltaX: number) => {
+  const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging) return;
+    
+    const deltaX = e.clientX - isDragging.startX;
     const deltaTime = deltaX / snapshot.timelineZoom;
     
     switch (isDragging.type) {
@@ -70,27 +72,8 @@ export const useTimelineDrag = () => {
         break;
     }
   }, [isDragging, snapshot.timelineZoom, snapshot.assets]);
-
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging) return;
-    const deltaX = e.clientX - isDragging.startX;
-    applyDelta(deltaX);
-  }, [isDragging, snapshot.timelineZoom, snapshot.assets]);
   
   const handleMouseUp = useCallback(() => {
-    setIsDragging(null);
-  }, []);
-
-  const handleTouchMove = useCallback((e: TouchEvent) => {
-    if (!isDragging) return;
-    if (e.touches.length < 1) return;
-    const x = e.touches[0].clientX;
-    const deltaX = x - isDragging.startX;
-    e.preventDefault();
-    applyDelta(deltaX);
-  }, [isDragging, applyDelta]);
-
-  const handleTouchEnd = useCallback(() => {
     setIsDragging(null);
   }, []);
   
@@ -99,17 +82,13 @@ export const useTimelineDrag = () => {
     if (isDragging) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
-      document.addEventListener('touchmove', handleTouchMove, { passive: false });
-      document.addEventListener('touchend', handleTouchEnd);
       
       return () => {
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
-        document.removeEventListener('touchmove', handleTouchMove as any);
-        document.removeEventListener('touchend', handleTouchEnd);
       };
     }
-  }, [isDragging, handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
+  }, [isDragging, handleMouseMove, handleMouseUp]);
 
   return {
     isDragging,

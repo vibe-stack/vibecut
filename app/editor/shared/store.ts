@@ -47,10 +47,6 @@ const createInitialState = (): EditorState => ({
     fps: 30,
     quality: 0.8,
   },
-
-  ui: {
-    desktopMode: false,
-  },
 });
 
 // Create the reactive store
@@ -360,13 +356,6 @@ export const editorActions = {
   },
 
   /**
-   * Incremental zoom change (e.g., pinch, wheel)
-   */
-  adjustTimelineZoom: (delta: number) => {
-    editorActions.setTimelineZoom(editorStore.timelineZoom + delta);
-  },
-
-  /**
    * Seek to specific time
    */
   seekTo: (time: number) => {
@@ -512,15 +501,6 @@ export const editorActions = {
    */
   loadSnapshot: (snapshotData: EditorState) => {
     Object.assign(editorStore, snapshotData);
-  },
-
-  // === UI PREFERENCES ===
-  setDesktopMode: (enabled: boolean) => {
-    if (!editorStore.ui) {
-      (editorStore as any).ui = { desktopMode: enabled };
-    } else {
-      editorStore.ui.desktopMode = enabled;
-    }
   },
 };
 
