@@ -294,8 +294,8 @@ export const editorActions = {
    */
   seekTo: (time: number) => {
     editorActions.setCurrentTime(time);
-    // Note: Video synchronization is now handled in the VideoClip components
-    // This avoids proxy access issues and provides better control
+    // Force immediate update by triggering a state change
+    editorStore.playback.currentTime = time;
   },
 
   // === COMPUTED VALUES ===

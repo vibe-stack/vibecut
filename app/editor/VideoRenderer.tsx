@@ -26,10 +26,7 @@ export const VideoClip: React.FC<VideoClipProps> = ({ clip, isActive }) => {
   // Get the actual video element (not the proxy)
   useEffect(() => {
     if (asset?.video && asset.loadState === 'loaded') {
-      // Use the asset's video element directly, but clone it for independent playback control
-      const originalVideo = asset.video as any; // Cast to avoid proxy issues
-      
-      // Create a new video element with the same source for independent control
+      // Create a unique video element for this clip to avoid conflicts
       const video = document.createElement('video');
       video.src = asset.src;
       video.crossOrigin = 'anonymous';
@@ -40,6 +37,8 @@ export const VideoClip: React.FC<VideoClipProps> = ({ clip, isActive }) => {
       // Set up the video for playback
       const handleLoadedData = () => {
         console.log(`Video loaded for clip ${clip.id}:`, video.duration, 'seconds');
+        // Set initial playback rate
+        video.playbackRate = snapshot.playback.playbackRate;
         videoRef.current = video;
       };
       
@@ -47,13 +46,19 @@ export const VideoClip: React.FC<VideoClipProps> = ({ clip, isActive }) => {
         console.error(`Video error for clip ${clip.id}:`, e);
       };
       
+      const handleCanPlay = () => {
+        console.log(`Video can play for clip ${clip.id}`);
+      };
+      
       video.addEventListener('loadeddata', handleLoadedData, { once: true });
       video.addEventListener('error', handleError);
+      video.addEventListener('canplay', handleCanPlay, { once: true });
       video.load();
       
       return () => {
         video.removeEventListener('loadeddata', handleLoadedData);
         video.removeEventListener('error', handleError);
+        video.removeEventListener('canplay', handleCanPlay);
         if (videoRef.current === video) {
           video.pause();
           video.src = '';
@@ -61,7 +66,7 @@ export const VideoClip: React.FC<VideoClipProps> = ({ clip, isActive }) => {
         }
       };
     }
-  }, [asset?.src, asset?.loadState]);
+  }, [asset?.src, asset?.loadState, clip.id, snapshot.playback.playbackRate]);
 
   // Create video texture
   const videoTexture = useMemo(() => {
@@ -71,7 +76,7 @@ export const VideoClip: React.FC<VideoClipProps> = ({ clip, isActive }) => {
     texture.minFilter = THREE.LinearFilter;
     texture.magFilter = THREE.LinearFilter;
     texture.format = THREE.RGBAFormat;
-    texture.flipY = false;
+    texture.flipY = true; // Fix the mirroring issue
     textureRef.current = texture;
     
     return texture;
@@ -79,22 +84,76 @@ export const VideoClip: React.FC<VideoClipProps> = ({ clip, isActive }) => {
 
   // Update video playback time and sync with timeline
   useEffect(() => {
-    if (videoRef.current && isActive) {
+    if (videoRef.current) {
       const video = videoRef.current;
       
-      // Set initial time
-      video.currentTime = clip.videoTime;
-      
-      // Handle play/pause state
-      if (snapshot.playback.isPlaying) {
-        video.play().catch(console.warn);
+      if (isActive) {
+        console.log(`Clip ${clip.id} became active at time ${clip.videoTime.toFixed(2)}`);
+        
+        // Handle play/pause state changes for active clips
+        if (snapshot.playback.isPlaying) {
+          // Set position and start playing
+          video.currentTime = clip.videoTime;
+          video.playbackRate = snapshot.playback.playbackRate;
+          
+          video.play().catch(error => {
+            console.warn(`Failed to play video for clip ${clip.id}:`, error);
+          });
+        } else {
+          if (!video.paused) {
+            video.pause();
+          }
+          // Set exact time when paused
+          video.currentTime = clip.videoTime;
+        }
       } else {
-        video.pause();
+        // Clip is inactive - pause the video but keep element alive
+        if (!video.paused) {
+          console.log(`Clip ${clip.id} became inactive - pausing`);
+          video.pause();
+        }
       }
-    } else if (videoRef.current && !isActive) {
-      videoRef.current.pause();
     }
-  }, [isActive, snapshot.playback.isPlaying]);
+  }, [isActive, snapshot.playback.isPlaying, clip.id]);
+
+  // Update video playback rate when it changes
+  useEffect(() => {
+    if (videoRef.current) {
+      const video = videoRef.current;
+      const newRate = snapshot.playback.playbackRate;
+      
+      if (Math.abs(video.playbackRate - newRate) > 0.01) {
+        console.log(`Updating playback rate for clip ${clip.id}: ${video.playbackRate} -> ${newRate}`);
+        video.playbackRate = newRate;
+      }
+    }
+  }, [snapshot.playback.playbackRate, clip.id]);
+
+  // Force update when timeline position changes (for manual seeking)
+  useEffect(() => {
+    if (videoRef.current && isActive && !snapshot.playback.isPlaying) {
+      // Only force update when paused (for manual seeking)
+      const video = videoRef.current;
+      video.currentTime = clip.videoTime;
+    }
+  }, [clip.videoTime, isActive, snapshot.playback.isPlaying]);
+
+  // Handle clip activation during playback
+  useEffect(() => {
+    if (videoRef.current && isActive && snapshot.playback.isPlaying) {
+      const video = videoRef.current;
+      
+      // When a clip becomes active during playback, ensure it starts properly
+      console.log(`Activating clip ${clip.id} during playback at time ${clip.videoTime.toFixed(2)}`);
+      video.currentTime = clip.videoTime;
+      video.playbackRate = snapshot.playback.playbackRate;
+      
+      // Start playback immediately
+      video.play().catch(error => {
+        console.warn(`Failed to start playback for newly active clip ${clip.id}:`, error);
+      });
+    }
+  }, [isActive, clip.id]);
 
   // Continuously sync video time with timeline (this is crucial for smooth playback)
   useEffect(() => {
@@ -102,41 +161,49 @@ export const VideoClip: React.FC<VideoClipProps> = ({ clip, isActive }) => {
       const video = videoRef.current;
       
       const syncVideoTime = () => {
+        const expectedTime = clip.videoTime;
+        
         if (snapshot.playback.isPlaying) {
-          const expectedTime = clip.videoTime;
+          // During playback, check if video is properly playing
           const actualTime = video.currentTime;
           const timeDrift = Math.abs(expectedTime - actualTime);
           
-          // If drift is too large (>0.2 seconds), resync
-          if (timeDrift > 0.2) {
+          // For new clips or major drift, resync immediately
+          if (timeDrift > 0.5 || video.paused) {
+            console.log(`Syncing clip ${clip.id}: expected ${expectedTime.toFixed(2)}, actual ${actualTime.toFixed(2)}, paused: ${video.paused}`);
+            video.currentTime = expectedTime;
+            
+            // Ensure video is playing
+            if (video.paused) {
+              video.play().catch(error => {
+                console.warn(`Failed to resume playback for clip ${clip.id}:`, error);
+              });
+            }
+          }
+        } else {
+          // When paused, set exact time for frame-accurate positioning
+          if (Math.abs(video.currentTime - expectedTime) > 0.1) {
             video.currentTime = expectedTime;
           }
           
-          // Ensure video is playing if timeline is playing
-          if (video.paused && snapshot.playback.isPlaying) {
-            video.play().catch(console.warn);
-          }
-        } else {
-          // Pause video if timeline is paused
+          // Ensure video is paused
           if (!video.paused) {
             video.pause();
           }
-          // Set exact time when paused for frame-accurate positioning
-          video.currentTime = clip.videoTime;
         }
       };
       
-      // Sync immediately
+      // Sync immediately when clip becomes active
       syncVideoTime();
       
-      // Set up a timer to periodically check sync (every 100ms)
-      const syncInterval = setInterval(syncVideoTime, 100);
+      // Set up periodic sync - more frequent for active clips
+      const syncInterval = setInterval(syncVideoTime, snapshot.playback.isPlaying ? 200 : 100);
       
       return () => {
         clearInterval(syncInterval);
       };
     }
-  }, [clip.videoTime, isActive, snapshot.playback.isPlaying]);
+  }, [clip.videoTime, isActive, snapshot.playback.isPlaying, clip.id]);
 
   // Calculate aspect ratio for plane geometry
   const aspectRatio = asset?.aspectRatio || (16 / 9);
@@ -168,7 +235,7 @@ export const VideoClip: React.FC<VideoClipProps> = ({ clip, isActive }) => {
       position={clip.position}
       rotation={clip.rotation}
       scale={clip.scale}
-      visible={clip.visible && clip.track.visible}
+      visible={isActive && clip.visible && clip.track.visible}
     >
       <planeGeometry args={planeArgs} />
       <meshBasicMaterial
@@ -187,21 +254,34 @@ export const VideoClip: React.FC<VideoClipProps> = ({ clip, isActive }) => {
  */
 interface TrackLayerProps {
   track: Readonly<Track>;
-  activeClips: ActiveClip[];
+  currentTime: number;
 }
 
-export const TrackLayer: React.FC<TrackLayerProps> = ({ track, activeClips }) => {
-  const trackClips = activeClips.filter(clip => clip.track.id === track.id);
-
+export const TrackLayer: React.FC<TrackLayerProps> = ({ track, currentTime }) => {
   return (
     <group position={[0, 0, track.zIndex]} visible={track.visible}>
-      {trackClips.map(clip => (
-        <VideoClip
-          key={clip.id}
-          clip={clip}
-          isActive={true}
-        />
-      ))}
+      {track.clips.map(clip => {
+        // Calculate if this clip is active at current time
+        const isActive = currentTime >= clip.start && currentTime < clip.end;
+        
+        // Calculate video time if active
+        const videoTime = isActive ? clip.trimStart + (currentTime - clip.start) : 0;
+        
+        // Create active clip object
+        const activeClip: ActiveClip = {
+          ...clip,
+          videoTime,
+          track,
+        };
+        
+        return (
+          <VideoClip
+            key={clip.id}
+            clip={activeClip}
+            isActive={isActive}
+          />
+        );
+      })}
     </group>
   );
 };
@@ -211,11 +291,6 @@ export const TrackLayer: React.FC<TrackLayerProps> = ({ track, activeClips }) =>
  */
 export const VideoRenderer: React.FC = () => {
   const snapshot = useSnapshot(editorStore);
-  
-  // Get active clips at current time
-  const activeClips = useMemo(() => {
-    return editorActions.getActiveClips();
-  }, [snapshot.playback.currentTime, snapshot.tracks]);
 
   return (
     <>
@@ -223,7 +298,7 @@ export const VideoRenderer: React.FC = () => {
         <TrackLayer
           key={track.id}
           track={track as Readonly<Track>}
-          activeClips={activeClips}
+          currentTime={snapshot.playback.currentTime}
         />
       ))}
     </>
@@ -236,10 +311,26 @@ export const VideoRenderer: React.FC = () => {
 export const PlaybackController: React.FC = () => {
   const snapshot = useSnapshot(editorStore);
   const lastUpdateTimeRef = useRef<number>(0);
+  const wasPlayingRef = useRef<boolean>(false);
   
   useFrame((state, delta) => {
-    if (!snapshot.playback.isPlaying) {
+    const isCurrentlyPlaying = snapshot.playback.isPlaying;
+    
+    // Reset timing when starting playback
+    if (isCurrentlyPlaying && !wasPlayingRef.current) {
       lastUpdateTimeRef.current = 0;
+      wasPlayingRef.current = true;
+      return;
+    }
+    
+    // Clear timing when stopping playback
+    if (!isCurrentlyPlaying && wasPlayingRef.current) {
+      lastUpdateTimeRef.current = 0;
+      wasPlayingRef.current = false;
+      return;
+    }
+    
+    if (!isCurrentlyPlaying) {
       return;
     }
     
