@@ -76,6 +76,10 @@ export interface Clip {
    */
   textContent?: string;
   textStyle?: TextStyle;
+  /**
+   * Text-only: non-destructive animation pipeline applied at render time
+   */
+  textAnimations?: TextAnimation[];
 }
 
 /**
@@ -257,4 +261,18 @@ export interface TextStyle {
   bold: boolean;
   italic: boolean;
   color: string; // hex color like #ffffff
+}
+
+/**
+ * Generic text animation applied non-destructively to text clips.
+ * Keys are arbitrary strings (e.g., "fade-in", "laser-cut", "golden-dust").
+ */
+export interface TextAnimation {
+  key: string; // unique animation key
+  enabled: boolean; // allow toggling without removing
+  settings?: Record<string, any>; // animation-specific parameters
+}
+
+declare module './types' {
+  // No-op module augmentation anchor if needed by consumers
 }

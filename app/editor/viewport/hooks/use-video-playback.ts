@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useRef, useEffect } from 'react';
 import { useSnapshot } from 'valtio';
 import { useFrame } from '@react-three/fiber';

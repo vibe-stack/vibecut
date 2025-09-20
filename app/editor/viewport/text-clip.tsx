@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useSnapshot } from 'valtio';
 import * as THREE from 'three';
 import editorStore, { editorActions } from '../shared/store';
 import type { ActiveClip } from '../shared/types';
 import { Line, Text } from '@react-three/drei';
+import { computeTextAnimationProps } from './animations';
 
 interface TextClipProps {
   clip: ActiveClip;
@@ -71,18 +72,41 @@ export const TextClip: React.FC<TextClipProps> = ({ clip, isActive }) => {
     if (!isSelected) editorActions.selectClips([clip.id]);
   };
 
+  const progress = useMemo(() => {
+    if (!isActive) return 0;
+    const { start, end } = clip;
+    const duration = Math.max(0.0001, end - start);
+    const p = (snap.playback.currentTime - start) / duration;
+    return Math.max(0, Math.min(1, p));
+  }, [isActive, clip.start, clip.end, snap.playback.currentTime]);
+
+  const animProps = useMemo(() => {
+    return computeTextAnimationProps(clip, clip.textAnimations, progress, snap.playback.isPlaying);
+  }, [clip, clip.textAnimations, progress, snap.playback.isPlaying]);
+
   return (
     <group position={clip.position} rotation={clip.rotation}>
       <group visible={isActive && clip.visible && clip.track.visible}>
         <Text
-          position={[0, 0, 0]}
-          scale={clip.scale}
+          position={[
+            (animProps.positionOffset?.[0] || 0),
+            (animProps.positionOffset?.[1] || 0),
+            (animProps.positionOffset?.[2] || 0),
+          ]}
+          scale={new THREE.Vector3(
+            clip.scale.x * (animProps.scaleMul ?? 1),
+            clip.scale.y * (animProps.scaleMul ?? 1),
+            clip.scale.z,
+          )}
           color={style.color}
           fontSize={style.fontSize}
           font={undefined}
           anchorX="center"
           anchorY="middle"
           onPointerDown={handleSelect}
+          rotation={new THREE.Euler(0, 0, (clip.rotation?.z || 0) + (animProps.rotationZ ?? 0))}
+          material-transparent
+          material-opacity={(clip.opacity ?? 1) * (animProps.opacityMul ?? 1)}
         >
           {content}
         </Text>

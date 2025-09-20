@@ -290,6 +290,7 @@ export const editorActions = {
       // text-only defaults
       textContent: asset.type === 'text' ? (clipData as any).textContent ?? 'Text' : undefined,
       textStyle: asset.type === 'text' ? (clipData as any).textStyle ?? editorStore.config.defaultTextStyle : undefined,
+      textAnimations: asset.type === 'text' ? (clipData as any).textAnimations ?? [] : undefined,
     };
 
     track.clips.push(newClip);
@@ -388,6 +389,73 @@ export const editorActions = {
       const asset = editorStore.assets[clip.assetId];
       if (asset?.type !== 'text') return;
       clip.textStyle = { ...(clip.textStyle || editorStore.config.defaultTextStyle!), ...updates } as any;
+      break;
+    }
+  },
+
+  /** TEXT: add an animation to a text clip */
+  addTextAnimation: (clipId: string, anim: { key: string; enabled?: boolean; settings?: Record<string, any> }) => {
+    for (const track of editorStore.tracks) {
+      const clip = track.clips.find(c => c.id === clipId);
+      if (!clip) continue;
+      const asset = editorStore.assets[clip.assetId];
+      if (asset?.type !== 'text') return;
+      if (!clip.textAnimations) clip.textAnimations = [];
+      // avoid duplicates by key (allow multiple instances only if consumer wants; here we replace)
+      const existingIdx = clip.textAnimations.findIndex(a => a.key === anim.key);
+      const entry = { key: anim.key, enabled: anim.enabled ?? true, settings: anim.settings };
+      if (existingIdx >= 0) {
+        clip.textAnimations[existingIdx] = { ...clip.textAnimations[existingIdx], ...entry };
+      } else {
+        clip.textAnimations.push(entry);
+      }
+      break;
+    }
+  },
+
+  /** TEXT: update an animation settings by key */
+  updateTextAnimation: (clipId: string, key: string, updates: { enabled?: boolean; settings?: Record<string, any> }) => {
+    for (const track of editorStore.tracks) {
+      const clip = track.clips.find(c => c.id === clipId);
+      if (!clip) continue;
+      const asset = editorStore.assets[clip.assetId];
+      if (asset?.type !== 'text' || !clip.textAnimations) return;
+      const idx = clip.textAnimations.findIndex(a => a.key === key);
+      if (idx >= 0) {
+        const curr = clip.textAnimations[idx];
+        clip.textAnimations[idx] = {
+          key: curr.key,
+          enabled: updates.enabled ?? curr.enabled,
+          settings: { ...(curr.settings || {}), ...(updates.settings || {}) },
+        };
+      }
+      break;
+    }
+  },
+
+  /** TEXT: remove an animation by key */
+  removeTextAnimation: (clipId: string, key: string) => {
+    for (const track of editorStore.tracks) {
+      const clip = track.clips.find(c => c.id === clipId);
+      if (!clip) continue;
+      const asset = editorStore.assets[clip.assetId];
+      if (asset?.type !== 'text' || !clip.textAnimations) return;
+      clip.textAnimations = clip.textAnimations.filter(a => a.key !== key);
+      break;
+    }
+  },
+
+  /** TEXT: reorder animations */
+  reorderTextAnimations: (clipId: string, fromIndex: number, toIndex: number) => {
+    for (const track of editorStore.tracks) {
+      const clip = track.clips.find(c => c.id === clipId);
+      if (!clip) continue;
+      const asset = editorStore.assets[clip.assetId];
+      if (asset?.type !== 'text' || !clip.textAnimations) return;
+      const arr = clip.textAnimations;
+      if (fromIndex < 0 || fromIndex >= arr.length || toIndex < 0 || toIndex >= arr.length) return;
+      const [moved] = arr.splice(fromIndex, 1);
+      arr.splice(toIndex, 0, moved);
       break;
     }
   },
