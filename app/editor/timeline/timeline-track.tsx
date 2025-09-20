@@ -49,7 +49,8 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
           left: '192px', // Track header width
           top: 0,
           width: `${timelineWidth}px`,
-          height: '100%'
+          height: '100%',
+          touchAction: 'manipulation',
         }}
         ref={setTimelineRef}
       >

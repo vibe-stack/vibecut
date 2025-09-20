@@ -1,20 +1,22 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { 
-  DndContext, 
-  useSensor, 
-  useSensors, 
-  MouseSensor, 
-  PointerSensor, 
-  rectIntersection, 
-  type DragStartEvent, 
-  type DragOverEvent, 
-  type DragEndEvent, 
-  type DragMoveEvent
+    DndContext, 
+    useSensor, 
+    useSensors, 
+    MouseSensor, 
+    TouchSensor,
+    rectIntersection, 
+    type DragStartEvent, 
+    type DragOverEvent, 
+    type DragEndEvent, 
+    type DragMoveEvent,
+    type DragCancelEvent,
 } from '@dnd-kit/core';
 import { useSnapshot } from 'valtio';
 import editorStore, { editorActions } from '../../shared/store';
 import type { Clip, Track } from '../../shared/types';
 import { findNearestFreePlacement } from '../utils/timeline-collision';
+import { useAutoscroll } from './use-autoscroll';
 
 type TimelineDragData = {
     type: 'clip';
@@ -42,19 +44,34 @@ export const useTimelineDnd = ({ pixelsPerSecond, scrollContainer, trackSwitchTh
 
     const sensors = useSensors(
         useSensor(MouseSensor, {
-            activationConstraint: {
-                distance: 10, // Require 10px movement before drag starts
-            },
+            activationConstraint: { distance: 2 },
         }),
-        useSensor(PointerSensor, {
-            activationConstraint: {
-                delay: 200, // 200ms delay before drag starts
-                tolerance: 10, // Allow 10px movement during delay
-            },
+        useSensor(TouchSensor, {
+            activationConstraint: { distance: 6 }, // small movement to activate; more reliable than press-hold
         }),
     );
 
     const stateRef = useRef<{ startY: number; lastOverTrackId?: string } | null>(null);
+    const lastPointerRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+    const { update: updateAutoScroll, stop: stopAutoScroll } = useAutoscroll({
+        container: scrollContainer,
+        edgeDistance: 96,
+        maxSpeed: 28,
+        getPointer: () => lastPointerRef.current,
+    });
+
+    // Track pointer positions globally during an active drag to drive custom autoscroll
+    const attachGlobalPointerTracking = () => {
+        const onPM = (e: PointerEvent) => { lastPointerRef.current = { x: e.clientX, y: e.clientY }; };
+        const onTM = (e: TouchEvent) => { const t = e.touches[0]; if (t) lastPointerRef.current = { x: t.clientX, y: t.clientY }; };
+        document.addEventListener('pointermove', onPM, { passive: true });
+        document.addEventListener('touchmove', onTM, { passive: true });
+        return () => {
+            document.removeEventListener('pointermove', onPM);
+            document.removeEventListener('touchmove', onTM);
+        };
+    };
+    const detachTrackingRef = useRef<(() => void) | null>(null);
 
     const onDragStart = (event: DragStartEvent) => {
         const data = event.active.data.current as TimelineDragData | undefined;
@@ -62,6 +79,10 @@ export const useTimelineDnd = ({ pixelsPerSecond, scrollContainer, trackSwitchTh
         setActiveId(data.clipId);
         const evt = event.activatorEvent as MouseEvent | PointerEvent | undefined;
         stateRef.current = { startY: (evt as any)?.clientY ?? 0 };
+        // Start tracking pointer and prepare autoscroll
+        if (!detachTrackingRef.current) {
+            detachTrackingRef.current = attachGlobalPointerTracking();
+        }
     };
 
     const onDragOver = (event: DragOverEvent) => {
@@ -91,6 +112,16 @@ export const useTimelineDnd = ({ pixelsPerSecond, scrollContainer, trackSwitchTh
                 const current = stateRef.current || { startY: 0 };
                 stateRef.current = { ...current, lastOverTrackId: targetTrackId };
             }
+        }
+        // Drive custom autoscroll
+        updateAutoScroll(lastPointerRef.current.x, lastPointerRef.current.y);
+    };
+
+    const cleanupDrag = () => {
+        stopAutoScroll();
+        if (detachTrackingRef.current) {
+            detachTrackingRef.current();
+            detachTrackingRef.current = null;
         }
     };
 
@@ -143,12 +174,20 @@ export const useTimelineDnd = ({ pixelsPerSecond, scrollContainer, trackSwitchTh
         
         // Clear state
         stateRef.current = null;
+        cleanupDrag();
+    };
+
+    const onDragCancel = (_event: DragCancelEvent) => {
+        // Ensure we fully stop autoscroll and tracking on cancel
+        setActiveId(null);
+        stateRef.current = null;
+        cleanupDrag();
     };
 
     const dndContext = useMemo(
         () => ({
             sensors,
-            autoScroll: true, // Enable built-in autoscroll
+            autoScroll: false, // Disable built-in autoscroll; we use a custom one for stability
             onDragStart: (e: DragStartEvent) => {
 
                 onDragStart(e);
@@ -164,6 +203,10 @@ export const useTimelineDnd = ({ pixelsPerSecond, scrollContainer, trackSwitchTh
             onDragEnd: (e: DragEndEvent) => {
 
                 onDragEnd(e);
+            },
+            onDragCancel: (e: DragCancelEvent) => {
+
+                onDragCancel(e);
             },
             collisionDetection: rectIntersection
         }),
