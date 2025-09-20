@@ -8,13 +8,15 @@ import { TimelineRuler } from './timeline-ruler';
 import { TimelineTrack } from './timeline-track';
 import { TimelinePlayhead } from './timeline-playhead';
 import { useScrollSyncedPlayhead } from './hooks/use-scroll-synced-playhead';
+import { useTimelineDnd } from './dnd';
 
-export const Timeline: React.FC = () => {
+export const Timeline: React.FC<{ scrollContainer?: HTMLElement | null }> = ({ scrollContainer = null }) => {
   const snapshot = useSnapshot(editorStore);
   const timelineRef = useRef<HTMLDivElement>(null);
   
   const { isDragging, handleStartDrag } = useTimelineDrag();
   const { handleSelectClip } = useTimelineSelection();
+  const { DndProvider } = useTimelineDnd({ pixelsPerSecond: snapshot.timelineZoom, scrollContainer });
   
   const timelineWidth = Math.max(1000, snapshot.totalDuration * snapshot.timelineZoom);
   const timelineHeight = 32 + (snapshot.tracks.length * 60); // Ruler + tracks
@@ -81,13 +83,14 @@ export const Timeline: React.FC = () => {
   
   return (
     <div className="bg-transparent">
-      <div
-        ref={timelineRef}
-        className="relative"
-        style={{ width: `${192 + timelineWidth}px`, height: `${timelineHeight}px` }}
-        onDrop={handleTimelineDrop}
-        onDragOver={handleTimelineDragOver}
-      >
+      <DndProvider>
+        <div
+          ref={timelineRef}
+          className="relative"
+          style={{ width: `${192 + timelineWidth}px`, height: `${timelineHeight}px` }}
+          onDrop={handleTimelineDrop}
+          onDragOver={handleTimelineDragOver}
+        >
         {/* Track header background (below ruler) */}
         <div
           className="absolute left-0"
@@ -121,7 +124,8 @@ export const Timeline: React.FC = () => {
           pixelsPerSecond={snapshot.timelineZoom}
           timelineHeight={timelineHeight}
         />
-      </div>
+        </div>
+      </DndProvider>
     </div>
   );
 };

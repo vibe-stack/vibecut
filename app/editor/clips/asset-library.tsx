@@ -64,7 +64,7 @@ export const AssetLibrary: React.FC = () => {
         
         {/* Asset List */}
         <div className="space-y-2">
-          {Object.values(snapshot.assets).map(asset => (
+          {Object.values(snapshot.assets as Record<string, any>).map((asset: any) => (
             <div
               key={asset.id}
               className="bg-gray-700 rounded p-3 cursor-pointer hover:bg-gray-600 transition-colors"

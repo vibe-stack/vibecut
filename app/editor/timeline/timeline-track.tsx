@@ -2,6 +2,7 @@ import React from 'react';
 import type { Track } from '../shared/types';
 import { TimelineClip } from './timeline-clip';
 import { editorActions } from '../shared/store';
+import { useDroppable } from '@dnd-kit/core';
 
 interface TimelineTrackProps {
   track: Readonly<Track>;
@@ -21,11 +22,13 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
   onStartDrag,
 }) => {
   const trackHeight = 60; // pixels
+  const { setNodeRef } = useDroppable({ id: `track-${track.id}` });
   
   return (
     <div 
       className="relative"
       style={{ height: `${trackHeight}px` }}
+      ref={setNodeRef}
     >
       {/* Track header */}
       <button

@@ -10,7 +10,6 @@ import { VideoEditorRenderer } from './video-renderer';
  */
 export const VideoViewport: React.FC = () => {
   const snapshot = useSnapshot(editorStore);
-
   return (
     <div className="w-full h-full bg-black relative">
       <Canvas

@@ -2,6 +2,9 @@ import React, { useCallback } from 'react';
 import { useSnapshot } from 'valtio';
 import editorStore from '../shared/store';
 import type { Clip, Track } from '../shared/types';
+import { useDraggable } from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
+import { getDraggableData } from './dnd';
 
 interface TimelineClipProps {
   clip: Readonly<Clip>;
@@ -24,45 +27,57 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
   
   const clipWidth = clip.duration * pixelsPerSecond;
   const clipLeft = clip.start * pixelsPerSecond;
+
+  const draggable = useDraggable({
+    id: `clip-${clip.id}`,
+    data: getDraggableData(clip as any, track.id, 0),
+  });
   
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    
-    const rect = e.currentTarget.getBoundingClientRect();
-    const relativeX = e.clientX - rect.left;
-    const isNearStart = relativeX < 10;
-    const isNearEnd = relativeX > clipWidth - 10;
-    
+  console.log('Draggable setup:', { 
+    clipId: clip.id, 
+    isDragging: draggable.isDragging, 
+    transform: draggable.transform,
+    hasListeners: !!draggable.listeners,
+    listenersKeys: Object.keys(draggable.listeners || {}),
+    hasSetNodeRef: !!draggable.setNodeRef
+  });
+  
+  const translate = CSS.Translate.toString(draggable.transform);
+  const transform = draggable.isDragging
+    ? `${translate || ''} scale(1.03)`
+    : translate || undefined;
+  const style = { transform } as React.CSSProperties;
+  
+  const handleClipClick = useCallback((e: React.MouseEvent) => {
+    // Handle selection on click, but don't interfere with drag
     if (e.shiftKey || e.metaKey) {
       onSelect(clip.id, true);
     } else {
       onSelect(clip.id, false);
     }
-    
-    if (isNearStart) {
-      onStartDrag(clip.id, 'trim-start', e.clientX);
-    } else if (isNearEnd) {
-      onStartDrag(clip.id, 'trim-end', e.clientX);
-    } else {
-      onStartDrag(clip.id, 'move', e.clientX);
-    }
-  }, [clip.id, clipWidth, onSelect, onStartDrag]);
+  }, [clip.id, onSelect]);
 
   return (
     <div
       className={`absolute h-12 rounded-xl cursor-pointer select-none transition-colors bg-white/10 hover:bg-white/15 ${
         isSelected ? 'ring-2 ring-white/50' : ''
-      }`}
+      } ${draggable.isDragging ? 'shadow-2xl shadow-black/50' : ''}`}
       data-clip-id={clip.id}
       style={{
         left: `${clipLeft}px`,
         width: `${clipWidth}px`,
+        ...style,
       }}
-      onMouseDown={handleMouseDown}
+      ref={draggable.setNodeRef}
+      {...draggable.listeners}
+      {...draggable.attributes}
       title={`${asset?.src?.split('/').pop() || 'Unknown'} (${clip.duration.toFixed(2)}s)`}
     >
-      {/* Clip content */}
-      <div className="h-full flex items-center px-2 text-white text-xs overflow-hidden">
+      {/* Clip content - make this handle selection */}
+      <div 
+        className="h-full flex items-center px-2 text-white text-xs overflow-hidden"
+        onClick={handleClipClick}
+      >
         <span className="truncate">
           {asset?.src?.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Clip'}
         </span>
@@ -73,18 +88,20 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
         <>
           {/* Left handle */}
           <div
-            className="absolute -left-2 top-0 w-3 h-full bg-white/30 hover:bg-white/50 rounded-l cursor-w-resize"
-            onMouseDown={(e) => {
+            className="absolute -left-2 top-0 w-3 h-full bg-white/30 hover:bg-white/50 rounded-l cursor-w-resize z-10"
+            onMouseDown={(e: React.MouseEvent) => {
               e.stopPropagation();
+              e.preventDefault();
               onSelect(clip.id, false);
               onStartDrag(clip.id, 'trim-start', e.clientX);
             }}
           />
           {/* Right handle */}
           <div
-            className="absolute -right-2 top-0 w-3 h-full bg-white/30 hover:bg-white/50 rounded-r cursor-e-resize"
-            onMouseDown={(e) => {
+            className="absolute -right-2 top-0 w-3 h-full bg-white/30 hover:bg-white/50 rounded-r cursor-e-resize z-10"
+            onMouseDown={(e: React.MouseEvent) => {
               e.stopPropagation();
+              e.preventDefault();
               onSelect(clip.id, false);
               onStartDrag(clip.id, 'trim-end', e.clientX);
             }}
