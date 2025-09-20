@@ -385,6 +385,80 @@ export const isValidImageFile = (file: File): boolean => {
   return validTypes.includes(file.type);
 };
 
+/** Validate audio file format */
+export const isValidAudioFile = (file: File): boolean => {
+  const validTypes = [
+    'audio/mpeg', // mp3
+    'audio/mp3',
+    'audio/wav',
+    'audio/wave',
+    'audio/x-wav',
+    'audio/ogg',
+    'audio/webm',
+    'audio/aac',
+    'audio/mp4',
+    'audio/x-m4a',
+    'audio/flac',
+  ];
+  return validTypes.includes(file.type);
+};
+
+/**
+ * Load an audio asset from URL or File
+ */
+export const loadAudioAsset = async (
+  src: string | File,
+  name?: string
+): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const audio = new Audio();
+    audio.preload = 'metadata';
+    audio.crossOrigin = 'anonymous';
+    const url = typeof src === 'string' ? src : URL.createObjectURL(src);
+
+    const assetId = editorActions.addAudioAsset({
+      type: 'audio',
+      src: url,
+      duration: 0,
+      audio: null,
+      loadState: 'loading',
+    } as any);
+
+    const handleLoadedMetadata = () => {
+      try {
+        editorActions.updateAsset(assetId, {
+          duration: isFinite(audio.duration) ? audio.duration : 0,
+          audio: ref(audio) as any,
+          loadState: 'loaded',
+        } as any);
+        // Auto-place as clip at end of preferred track
+        editorActions.addAssetAsClip(assetId);
+        resolve(assetId);
+      } catch (error) {
+        editorActions.updateAsset(assetId, {
+          loadState: 'error',
+          error: error instanceof Error ? error.message : 'Failed to load audio',
+        } as any);
+        reject(error);
+      }
+    };
+
+    const handleError = () => {
+      const errorMessage = 'Failed to load audio';
+      editorActions.updateAsset(assetId, {
+        loadState: 'error',
+        error: errorMessage,
+      } as any);
+      reject(new Error(errorMessage));
+    };
+
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
+    audio.addEventListener('error', handleError, { once: true });
+    audio.src = url;
+    audio.load();
+  });
+};
+
 /**
  * Get supported video formats
  */

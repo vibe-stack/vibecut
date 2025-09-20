@@ -1,16 +1,17 @@
 import { useCallback, useRef } from 'react';
-import { loadVideoAsset, isValidVideoFile, loadImageAsset, isValidImageFile } from '../../shared/assets';
+import { loadVideoAsset, isValidVideoFile, loadImageAsset, isValidImageFile, loadAudioAsset, isValidAudioFile } from '../../shared/assets';
 
 export const useFileUpload = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = useCallback(async (files: FileList) => {
     const all = Array.from(files);
-    const videos = all.filter(isValidVideoFile);
-    const images = all.filter(isValidImageFile);
+  const videos = all.filter(isValidVideoFile);
+  const images = all.filter(isValidImageFile);
+  const audios = all.filter(isValidAudioFile);
 
-    if (videos.length === 0 && images.length === 0) {
-      alert('Please select valid media files (videos: mp4/webm/ogg/mov/avi; images: png/jpg/webp/gif/svg/bmp)');
+    if (videos.length === 0 && images.length === 0 && audios.length === 0) {
+      alert('Please select valid media files (videos: mp4/webm/ogg/mov/avi; images: png/jpg/webp/gif/svg/bmp; audio: mp3/wav/ogg/webm/aac/m4a/flac)');
       return;
     }
 
@@ -29,6 +30,15 @@ export const useFileUpload = () => {
       } catch (error) {
         console.error(`Failed to load video ${file.name}:`, error);
         alert(`Failed to load video ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+
+    for (const file of audios) {
+      try {
+        await loadAudioAsset(file, file.name);
+      } catch (error) {
+        console.error(`Failed to load audio ${file.name}:`, error);
+        alert(`Failed to load audio ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
   }, []);

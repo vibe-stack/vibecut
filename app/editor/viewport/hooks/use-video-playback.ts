@@ -8,9 +8,9 @@ import type { ActiveClip } from '../../shared/types';
 
 export const useVideoPlayback = (clip: ActiveClip, isActive: boolean) => {
   const snapshot = useSnapshot(editorStore);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const materialRef = useRef<THREE.MeshBasicMaterial>(null);
-  const textureRef = useRef<THREE.VideoTexture | null>(null);
+  const videoRef = useRef<any>(null);
+  const materialRef = useRef<any>(null);
+  const textureRef = useRef<any>(null);
 
   const asset = snapshot.assets[clip.assetId] as any;
 
@@ -63,7 +63,7 @@ export const useVideoPlayback = (clip: ActiveClip, isActive: boolean) => {
       // Create texture after video is set up
       const createTextureIfNeeded = () => {
         if (!textureRef.current && videoRef.current) {
-          const texture = new THREE.VideoTexture(videoRef.current);
+          const texture = new THREE.VideoTexture(videoRef.current as any);
           texture.minFilter = THREE.LinearFilter;
           texture.magFilter = THREE.LinearFilter;
           // Safari is happier with RGB for video textures

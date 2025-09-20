@@ -24,7 +24,7 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
   const snapshot = useSnapshot(editorStore);
   const isSelected = snapshot.selectedClipIds.includes(clip.id);
   const asset = snapshot.assets[clip.assetId];
-  
+
   const clipWidth = clip.duration * pixelsPerSecond;
   const clipLeft = clip.start * pixelsPerSecond;
 
@@ -32,13 +32,13 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
     id: `clip-${clip.id}`,
     data: getDraggableData(clip as any, track.id, 0),
   });
-  
+
   const translate = CSS.Translate.toString(draggable.transform);
   const transform = draggable.isDragging
     ? `${translate || ''} scale(1.1)`
     : translate || undefined;
   const style = { transform } as React.CSSProperties;
-  
+
   const handleClick = useCallback((e: React.MouseEvent) => {
     console.log('Clip clicked:', clip.id, 'isDragging:', draggable.isDragging);
     // Handle selection when clicked
@@ -50,11 +50,13 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
     }
   }, [clip.id, onSelect, draggable.isDragging]);
 
+  const bgColor = asset.type === "text" ? "bg-orange-700 hover:bg-orange-800": asset.type === "image" ? "bg-green-700 hover:bg-green-800" : asset.type === "audio" ? "bg-blue-600 hover:bg-blue-700" : "bg-purple-700 hover:bg-purple-800";
+  const selectedBgColor = asset.type === "text" ? "ring-orange-400/50": asset.type === "image" ? "ring-green-400/50" : asset.type === "audio" ? "ring-blue-400/50" : "ring-purple-400/50";
+
   return (
     <div
-      className={`absolute h-12 rounded-xl cursor-pointer select-none transition-colors bg-white/10 hover:bg-white/15 ${
-        isSelected ? 'ring-2 ring-white/50' : ''
-      } ${draggable.isDragging ? 'shadow-2xl shadow-black/50' : ''}`}
+      className={`absolute h-12 rounded-xl mt-2 cursor-pointer select-none transition-colors ${bgColor} ${isSelected ? selectedBgColor  : ''
+        } ${draggable.isDragging ? 'shadow-2xl shadow-black/50' : ''}`}
       data-clip-id={clip.id}
       style={{
         left: `${clipLeft}px`,
@@ -69,7 +71,7 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
       onClick={handleClick}
     >
       {/* Clip content */}
-      <div 
+      <div
         className="h-full flex items-center px-2 pl-8 text-white text-xs overflow-hidden"
         style={{ touchAction: 'none' }}
       >
@@ -77,7 +79,7 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
           {asset?.type === 'text' ? (clip as any).textContent || 'Text' : (asset?.src?.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Clip')}
         </span>
       </div>
-      
+
       {/* Trim handles */}
       {isSelected && (
         <>

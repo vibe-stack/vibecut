@@ -16,7 +16,7 @@ export const AddVideoAction: React.FC = () => {
         ref={fileInputRef}
         type="file"
         multiple
-        accept="video/*,image/*"
+        accept="*"
         className="hidden"
         onChange={handleFileInputChange}
       />

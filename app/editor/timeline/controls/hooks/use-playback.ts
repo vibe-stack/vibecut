@@ -6,6 +6,8 @@ export const usePlayback = () => {
   const snapshot = useSnapshot(editorStore);
   
   const handlePlayPause = useCallback(() => {
+    // Initialize audio context on first play for iOS Safari
+    editorActions.initializeAudioContext();
     editorActions.togglePlayback();
   }, []);
 

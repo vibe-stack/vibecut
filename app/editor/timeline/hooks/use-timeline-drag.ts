@@ -51,7 +51,7 @@ export const useTimelineDrag = () => {
         if (track) {
           const proposedStart = isDragging.originalClip.start + deltaTime;
           const clampedStart = clampTrimStartToLeft(track as any, isDragging.originalClip as any, proposedStart);
-          if (a && a.type === 'video') {
+          if (a && (a.type === 'video' || a.type === 'audio')) {
             let newTrimStart = Math.max(0, isDragging.originalClip.trimStart + (clampedStart - isDragging.originalClip.start));
             const maxTrimStart = isDragging.originalClip.trimEnd || a.duration;
             if (newTrimStart < maxTrimStart) {
@@ -71,7 +71,7 @@ export const useTimelineDrag = () => {
         
       case 'trim-end':
         const asset = snapshot.assets[isDragging.originalClip.assetId];
-        if (asset && asset.type === 'video') {
+  if (asset && (asset.type === 'video' || asset.type === 'audio')) {
           const maxDuration = asset.duration || 0;
           let newTrimEnd = Math.min(maxDuration, 
             (isDragging.originalClip.trimEnd || maxDuration) + deltaTime);
@@ -129,7 +129,7 @@ export const useTimelineDrag = () => {
         if (track) {
           const proposedStart = isDragging.originalClip.start + deltaTime;
           const clampedStart = clampTrimStartToLeft(track as any, isDragging.originalClip as any, proposedStart);
-          if (a && a.type === 'video') {
+          if (a && (a.type === 'video' || a.type === 'audio')) {
             let newTrimStart = Math.max(0, isDragging.originalClip.trimStart + (clampedStart - isDragging.originalClip.start));
             const maxTrimStart = isDragging.originalClip.trimEnd || a.duration;
             if (newTrimStart < maxTrimStart) {
@@ -143,7 +143,7 @@ export const useTimelineDrag = () => {
       }
       case 'trim-end': {
         const asset = snapshot.assets[isDragging.originalClip.assetId];
-        if (asset && asset.type === 'video') {
+  if (asset && (asset.type === 'video' || asset.type === 'audio')) {
           const maxDuration = asset.duration || 0;
           let newTrimEnd = Math.min(maxDuration, (isDragging.originalClip.trimEnd || maxDuration) + deltaTime);
           const track2 = snapshot.tracks.find(t => t.clips.some(c => c.id === isDragging.clipId));
@@ -200,7 +200,7 @@ export const useTimelineDrag = () => {
         if (track) {
           const proposedStart = isDragging.originalClip.start + deltaTime;
           const clampedStart = clampTrimStartToLeft(track as any, isDragging.originalClip as any, proposedStart);
-          if (a && a.type === 'video') {
+          if (a && (a.type === 'video' || a.type === 'audio')) {
             let newTrimStart = Math.max(0, isDragging.originalClip.trimStart + (clampedStart - isDragging.originalClip.start));
             const maxTrimStart = isDragging.originalClip.trimEnd || a.duration;
             if (newTrimStart < maxTrimStart) {
@@ -219,7 +219,7 @@ export const useTimelineDrag = () => {
       }
       case 'trim-end': {
         const asset = snapshot.assets[isDragging.originalClip.assetId];
-        if (asset && asset.type === 'video') {
+  if (asset && (asset.type === 'video' || asset.type === 'audio')) {
           const maxDuration = asset.duration || 0;
           let newTrimEnd = Math.min(maxDuration, (isDragging.originalClip.trimEnd || maxDuration) + deltaTime);
           const track2 = snapshot.tracks.find(t => t.clips.some(c => c.id === isDragging.clipId));

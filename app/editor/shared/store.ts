@@ -1,13 +1,13 @@
 import { proxy, snapshot, subscribe } from 'valtio';
 import { v4 as uuidv4 } from 'uuid';
 import * as THREE from 'three';
-import type { 
-  EditorState, 
-  Track, 
-  Clip, 
-  Asset, 
-  ActiveClip, 
-  PlaybackState, 
+import type {
+  EditorState,
+  Track,
+  Clip,
+  Asset,
+  ActiveClip,
+  PlaybackState,
   EditorConfig,
   VideoMetadata,
   ImageAdjustments,
@@ -17,7 +17,7 @@ import type {
 const createInitialState = (): EditorState => ({
   tracks: [],
   assets: {},
-  
+
   playback: {
     currentTime: 0,
     isPlaying: false,
@@ -26,14 +26,14 @@ const createInitialState = (): EditorState => ({
     startTime: 0,
     endTime: 0,
   },
-  
+
   config: {
     editorFps: 30,
     snapToFrames: false,
     autoSave: true,
     gridSnap: false,
     gridSize: 1,
-    defaultImageDuration: 3,
+    defaultImageDuration: 15,
     defaultTextDuration: 3,
     defaultTextStyle: {
       fontFamily: 'Inter',
@@ -43,12 +43,12 @@ const createInitialState = (): EditorState => ({
       color: '#ffffff',
     },
   },
-  
+
   selectedClipIds: [],
   selectedTrackIds: [],
   timelineZoom: 10, // 10 pixels per second initially
   timelineOffset: 0,
-  
+
   projectName: 'Untitled Project',
   totalDuration: 0,
   exportSettings: {
@@ -83,7 +83,7 @@ export const editorActions = {
     }
   },
   // === ASSET MANAGEMENT ===
-  
+
   /**
    * Add a new asset to the store
    */
@@ -99,6 +99,9 @@ export const editorActions = {
     return editorActions.addAsset(asset as Omit<Asset, 'id'>);
   },
   addImageAsset: (asset: Omit<Extract<Asset, { type: 'image' }>, 'id'>) => {
+    return editorActions.addAsset(asset as Omit<Asset, 'id'>);
+  },
+  addAudioAsset: (asset: Omit<Extract<Asset, { type: 'audio' }>, 'id'>) => {
     return editorActions.addAsset(asset as Omit<Asset, 'id'>);
   },
   addTextAsset: (asset: Omit<Extract<Asset, { type: 'text' }>, 'id'>) => {
@@ -155,9 +158,11 @@ export const editorActions = {
     const start = lastEnd;
     const clipDuration = asset.type === 'video'
       ? asset.duration
-      : asset.type === 'image'
-        ? (editorStore.config.defaultImageDuration || 3)
-        : (editorStore.config.defaultTextDuration || 3);
+      : asset.type === 'audio'
+        ? asset.duration
+        : asset.type === 'image'
+          ? (editorStore.config.defaultImageDuration || 3)
+          : (editorStore.config.defaultTextDuration || 3);
     const end = start + clipDuration;
 
     editorActions.addClip(trackId, {
@@ -165,13 +170,13 @@ export const editorActions = {
       start,
       end,
       trimStart: 0,
-      trimEnd: asset.type === 'video' ? null : null,
+      trimEnd: (asset.type === 'video' || asset.type === 'audio') ? null : null,
       // rely on defaults for transform/visibility/volume
     } as any);
   },
 
   // === TRACK MANAGEMENT ===
-  
+
   /**
    * Add a new track
    */
@@ -187,7 +192,7 @@ export const editorActions = {
       zIndex: editorStore.tracks.length,
       visible: true,
       locked: false,
-      color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
+      color: `#${Math.floor(Math.random() * 16777215).toString(16)}`,
       ...track,
     };
     editorStore.tracks.push(newTrack);
@@ -232,38 +237,38 @@ export const editorActions = {
   reorderTracks: (fromIndex: number, toIndex: number) => {
     const [removed] = editorStore.tracks.splice(fromIndex, 1);
     editorStore.tracks.splice(toIndex, 0, removed);
-    
+
     // Update zIndex to match new order (first track on top)
     editorActions._recomputeTrackZIndices();
   },
 
   // === CLIP MANAGEMENT ===
-  
+
   /**
    * Add a new clip to a track
    */
   addClip: (trackId: string, clipData: Omit<Clip, 'id' | 'duration'>): string => {
     const track = editorStore.tracks.find(t => t.id === trackId);
     if (!track) throw new Error(`Track ${trackId} not found`);
-    
+
     const asset = editorStore.assets[clipData.assetId];
     if (!asset) throw new Error(`Asset ${clipData.assetId} not found`);
 
     const id = uuidv4();
-    const duration = asset.type === 'video'
+    const duration = (asset.type === 'video' || asset.type === 'audio')
       ? (clipData.trimEnd ? clipData.trimEnd - clipData.trimStart : (asset.duration - clipData.trimStart))
       : Math.max(0, clipData.end - clipData.start);
-    
-  const newClip: Clip = {
+
+    const newClip: Clip = {
       // Required fields
       id,
       duration,
       assetId: clipData.assetId,
       start: clipData.start,
       end: clipData.end,
-  trimStart: asset.type === 'video' ? clipData.trimStart : 0,
-  trimEnd: asset.type === 'video' ? clipData.trimEnd : null,
-      
+      trimStart: (asset.type === 'video' || asset.type === 'audio') ? clipData.trimStart : 0,
+      trimEnd: (asset.type === 'video' || asset.type === 'audio') ? clipData.trimEnd : null,
+
       // Default values that can be overridden
       position: clipData.position || new THREE.Vector3(0, 0, 0),
       rotation: clipData.rotation || new THREE.Euler(0, 0, 0),
@@ -323,21 +328,46 @@ export const editorActions = {
       const clip = track.clips.find(c => c.id === clipId);
       if (clip) {
         Object.assign(clip, updates);
-        
+
         // Recalculate duration if trim values changed
         const asset = editorStore.assets[clip.assetId];
         if (asset) {
-          if (asset.type === 'video' && ('trimStart' in updates || 'trimEnd' in updates)) {
+          if ((asset.type === 'video' || asset.type === 'audio') && ('trimStart' in updates || 'trimEnd' in updates)) {
             clip.duration = clip.trimEnd ? clip.trimEnd - clip.trimStart : asset.duration - clip.trimStart;
           }
           if ((asset.type === 'image' || asset.type === 'text') && ('start' in updates || 'end' in updates)) {
             clip.duration = Math.max(0, clip.end - clip.start);
           }
         }
-        
+
         editorActions.updateTotalDuration();
         break;
       }
+    }
+  },
+
+  /** AUDIO: set non-destructive per-clip audio effects */
+  setAudioEffects: (clipId: string, updates: Partial<NonNullable<Clip['audioEffects']>>) => {
+    for (const track of editorStore.tracks) {
+      const clip = track.clips.find(c => c.id === clipId);
+      if (!clip) continue;
+      const asset = editorStore.assets[clip.assetId];
+      if (asset?.type !== 'audio' && asset?.type !== 'video') {
+        // allow audio effects also for videos in future; here we focus on audio assets but keep flexible
+      }
+      const current = clip.audioEffects || { fadeInSec: 0, fadeOutSec: 0, speed: 1 };
+      clip.audioEffects = { ...current, ...updates };
+      break;
+    }
+  },
+
+  /** AUDIO: reset effects to defaults */
+  resetAudioEffects: (clipId: string) => {
+    for (const track of editorStore.tracks) {
+      const clip = track.clips.find(c => c.id === clipId);
+      if (!clip) continue;
+      clip.audioEffects = { fadeInSec: 0, fadeOutSec: 0, speed: 1 };
+      break;
     }
   },
 
@@ -511,7 +541,7 @@ export const editorActions = {
    */
   moveClipToTrack: (clipId: string, targetTrackId: string) => {
     let clipToMove: Clip | null = null;
-    
+
     // Remove from current track
     for (const track of editorStore.tracks) {
       const clipIndex = track.clips.findIndex(c => c.id === clipId);
@@ -520,7 +550,7 @@ export const editorActions = {
         break;
       }
     }
-    
+
     // Add to target track
     if (clipToMove) {
       const targetTrack = editorStore.tracks.find(t => t.id === targetTrackId);
@@ -575,7 +605,7 @@ export const editorActions = {
   },
 
   // === PLAYBACK CONTROL ===
-  
+
   /**
    * Set current playback time
    */
@@ -595,6 +625,31 @@ export const editorActions = {
    */
   setPlaying: (playing: boolean) => {
     editorStore.playback.isPlaying = playing;
+  },
+
+  /**
+   * Initialize audio context for iOS Safari compatibility
+   * Should be called on first user interaction
+   */
+  initializeAudioContext: () => {
+    try {
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioContext && !(window as any).__editorAudioContext) {
+        const ctx = new AudioContext();
+        (window as any).__editorAudioContext = ctx;
+
+        // Resume if suspended (common on iOS Safari)
+        if (ctx.state === 'suspended') {
+          ctx.resume().catch(error => {
+            console.warn('Failed to resume audio context:', error);
+          });
+        }
+
+        console.log('Audio context initialized for iOS Safari compatibility');
+      }
+    } catch (error) {
+      console.warn('Failed to initialize audio context:', error);
+    }
   },
 
   /**
@@ -628,20 +683,20 @@ export const editorActions = {
   },
 
   // === COMPUTED VALUES ===
-  
+
   /**
    * Get all clips that are active at the current time
    */
   getActiveClips: (): ActiveClip[] => {
     const { currentTime } = editorStore.playback;
     const activeClips: ActiveClip[] = [];
-    
+
     editorStore.tracks.forEach(track => {
       if (!track.visible) return;
-      
+
       track.clips.forEach(clip => {
         if (!clip.visible) return;
-        
+
         if (currentTime >= clip.start && currentTime < clip.end) {
           const videoTime = clip.trimStart + (currentTime - clip.start);
           activeClips.push({
@@ -652,7 +707,7 @@ export const editorActions = {
         }
       });
     });
-    
+
     return activeClips.sort((a, b) => a.track.zIndex - b.track.zIndex);
   },
 
@@ -661,7 +716,7 @@ export const editorActions = {
    */
   getClipsAtTime: (time: number): ActiveClip[] => {
     const activeClips: ActiveClip[] = [];
-    
+
     editorStore.tracks.forEach(track => {
       track.clips.forEach(clip => {
         if (time >= clip.start && time < clip.end) {
@@ -674,7 +729,7 @@ export const editorActions = {
         }
       });
     });
-    
+
     return activeClips.sort((a, b) => a.track.zIndex - b.track.zIndex);
   },
 
@@ -692,7 +747,7 @@ export const editorActions = {
   },
 
   // === SELECTION ===
-  
+
   /**
    * Select clips
    */
@@ -744,7 +799,7 @@ export const editorActions = {
   },
 
   // === PROJECT MANAGEMENT ===
-  
+
   /**
    * Reset to initial state
    */

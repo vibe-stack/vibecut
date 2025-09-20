@@ -6,6 +6,13 @@ import editorStore, { editorActions } from '../shared/store';
 import type { Track, ActiveClip } from '../shared/types';
 import { VideoClip } from './video-clip';
 import { ImageClip, TextClip } from './index';
+import { useAudioPlayback } from './hooks/use-audio-playback';
+
+const AudioClipPlayback: React.FC<{ clip: ActiveClip; isActive: boolean }> = ({ clip, isActive }) => {
+  // Hook drives audio playback; returns nothing to render
+  useAudioPlayback(clip, isActive);
+  return null;
+};
 
 /**
  * Track layer component that renders all clips in a track
@@ -39,6 +46,9 @@ export const TrackLayer: React.FC<TrackLayerProps> = ({ track, currentTime }) =>
         }
         if (t === 'text') {
           return <TextClip key={clip.id} clip={activeClip} isActive={isActive} />;
+        }
+        if (t === 'audio') {
+          return <AudioClipPlayback key={clip.id} clip={activeClip} isActive={isActive} />;
         }
         return <VideoClip key={clip.id} clip={activeClip} isActive={isActive} />;
       })}

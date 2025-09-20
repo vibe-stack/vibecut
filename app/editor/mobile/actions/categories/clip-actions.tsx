@@ -12,6 +12,9 @@ import ImageAdjustAction from '../components/image-adjust-action';
 import ChangeTextAction from '../components/change-text-action';
 import TextStyleAction from '../components/text-style-action';
 import TextAnimationsAction from '../components/animations/text-animations-action';
+import AudioFadeInAction from '../components/audio-fade-in-action';
+import AudioFadeOutAction from '../components/audio-fade-out-action';
+import AudioSpeedAction from '../components/audio-speed-action';
 
 export const ClipActions: React.FC<{ clipId: string }> = ({ clipId }) => {
   const snap = useSnapshot(editorStore);
@@ -40,6 +43,14 @@ export const ClipActions: React.FC<{ clipId: string }> = ({ clipId }) => {
             <ChangeTextAction clipId={clip.id} />
             <TextStyleAction clipId={clip.id} />
             <TextAnimationsAction clipId={clip.id} />
+          </>
+        )}
+
+        {asset?.type === 'audio' && (
+          <>
+            <AudioFadeInAction clipId={clip.id} />
+            <AudioFadeOutAction clipId={clip.id} />
+            <AudioSpeedAction clipId={clip.id} />
           </>
         )}
       </ActionsRow>

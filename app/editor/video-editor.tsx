@@ -3,6 +3,7 @@ import { useSnapshot } from 'valtio';
 import editorStore, { editorActions } from './shared/store';
 import { useKeyboardShortcuts } from './timeline/controls/hooks/use-keyboard-shortcuts';
 import MobileEditor from './mobile/mobile-editor';
+import IOSAudioInitializer from './shared/ios-audio-init';
 
 /**
  * Main video editor interface
@@ -20,7 +21,12 @@ export const VideoEditor: React.FC = () => {
   // Enable keyboard shortcuts
   useKeyboardShortcuts();
 
-  return <MobileEditor />;
+  return (
+    <>
+      <IOSAudioInitializer />
+      <MobileEditor />
+    </>
+  );
 };
 
 /**

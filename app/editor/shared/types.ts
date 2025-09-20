@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 
 /**
- * Media assets: video, image or text
+ * Media assets: video, image, audio or text
  */
-export type MediaType = 'video' | 'image' | 'text';
+export type MediaType = 'video' | 'image' | 'audio' | 'text';
 
 export interface BaseAsset {
   id: string;
@@ -28,11 +28,17 @@ export interface ImageAsset extends BaseAsset {
   image: HTMLImageElement | null; // Loaded image element for texture
 }
 
+export interface AudioAsset extends BaseAsset {
+  type: 'audio';
+  duration: number; // Duration in seconds
+  audio: HTMLAudioElement | null; // Loaded audio element for playback
+}
+
 export interface TextAsset extends BaseAsset {
   type: 'text';
 }
 
-export type Asset = VideoAsset | ImageAsset | TextAsset;
+export type Asset = VideoAsset | ImageAsset | AudioAsset | TextAsset;
 
 /**
  * A video clip placed on a track
@@ -43,10 +49,10 @@ export interface Clip {
   start: number; // Start time on timeline (seconds)
   end: number; // End time on timeline (seconds)
   /**
-   * Video-only: trim from source
+   * Video/Audio-only: trim from source
    */
-  trimStart: number; // seconds, default 0 (video only)
-  trimEnd: number | null; // seconds, null = asset.duration (video only)
+  trimStart: number; // seconds, default 0 (video/audio only)
+  trimEnd: number | null; // seconds, null = asset.duration (video/audio only)
   /**
    * Duration of the clip on timeline. For images it's end-start; for videos it's based on trim.
    */
@@ -64,6 +70,18 @@ export interface Clip {
   // Audio properties
   volume: number; // 0-1, default: 1
   muted: boolean; // Individual clip mute
+
+  /**
+   * Audio-only: per-clip non-destructive effects
+   */
+  audioEffects?: {
+    /** seconds, linear fade from 0 to 1 */
+    fadeInSec: number;
+    /** seconds, linear fade from 1 to 0 */
+    fadeOutSec: number;
+    /** playback speed multiplier, applied on top of global playbackRate */
+    speed: number;
+  };
 
   /**
    * Image-only: non-destructive adjustments and filter preset, applied per-clip

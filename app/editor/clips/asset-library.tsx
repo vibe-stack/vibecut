@@ -47,7 +47,7 @@ export const AssetLibrary: React.FC = () => {
         <input
           ref={fileInputRef}
           type="file"
-          accept="video/*,image/*"
+          accept="video/*,image/*,audio/*"
           multiple
           className="hidden"
           onChange={handleFileInputChange}
