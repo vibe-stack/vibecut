@@ -604,6 +604,79 @@ export const editorActions = {
     return undefined;
   },
 
+  /**
+   * Split a clip at a specific timeline time (defaults to current playhead).
+   * Duplicates the original clip and trims both sides exactly at the split time.
+   * Returns the new (right-hand) clip id when a split occurs, otherwise undefined.
+   */
+  splitClipAt: (clipId: string, time?: number) => {
+    const splitTime = time ?? editorStore.playback.currentTime;
+
+    // Tolerance: avoid zero-length clips when split sits exactly on boundaries
+    const frameSec = 1 / Math.max(1, editorStore.config.editorFps || 30);
+
+    for (const track of editorStore.tracks) {
+      const idx = track.clips.findIndex(c => c.id === clipId);
+      if (idx === -1) continue;
+      const clip = track.clips[idx];
+
+      // Validate split is strictly inside the clip duration
+      if (splitTime <= clip.start + frameSec || splitTime >= clip.end - frameSec) {
+        return undefined; // no-op
+      }
+
+      const asset = editorStore.assets[clip.assetId];
+      if (!asset) return undefined;
+
+      // Compute source time at split for AV
+      const offsetIntoClip = splitTime - clip.start; // seconds
+      const sourceTimeAtSplit = clip.trimStart + offsetIntoClip; // for video/audio
+
+      // Construct right-hand duplicate first
+      const rightId = uuidv4();
+      const rightClip: Clip = {
+        ...clip,
+        id: rightId,
+        start: splitTime,
+        end: clip.end,
+      };
+
+      // Adjust trims/durations by asset type
+      if (asset.type === 'video' || asset.type === 'audio') {
+        rightClip.trimStart = sourceTimeAtSplit;
+        // keep trimEnd same as original (could be null)
+        // Duration is based on trims for AV
+        rightClip.duration = (rightClip.trimEnd != null)
+          ? (rightClip.trimEnd - rightClip.trimStart)
+          : Math.max(0, (asset as any).duration - rightClip.trimStart);
+      } else {
+        // image/text duration purely from timeline
+        rightClip.duration = Math.max(0, rightClip.end - rightClip.start);
+      }
+
+      // Mutate original clip to become left-hand
+      const leftClip = clip;
+      leftClip.end = splitTime;
+      if (asset.type === 'video' || asset.type === 'audio') {
+        // left trimStart unchanged; set trimEnd to the source split time
+        leftClip.trimEnd = sourceTimeAtSplit;
+        leftClip.duration = Math.max(0, leftClip.trimEnd - leftClip.trimStart);
+      } else {
+        leftClip.duration = Math.max(0, leftClip.end - leftClip.start);
+      }
+
+      // Insert right clip just after the left within same track
+      track.clips.splice(idx + 1, 0, rightClip);
+
+      // Update total duration and selection (select right piece as feedback)
+      editorActions.updateTotalDuration();
+      editorActions.selectClips([rightId]);
+      return rightId;
+    }
+
+    return undefined;
+  },
+
   // === PLAYBACK CONTROL ===
 
   /**

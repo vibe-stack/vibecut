@@ -1,6 +1,7 @@
 import React from 'react';
 import ActionsRow from '../actions-row';
 import DuplicateClipAction from '../components/duplicate-clip-action';
+import SplitClipAction from '../components/split-clip-action';
 import RemoveClipAction from '../components/remove-clip-action';
 import ClipOpacityAction from '../components/clip-opacity-action';
 import ToggleClipVisibilityAction from '../components/toggle-clip-visibility-action';
@@ -26,6 +27,7 @@ export const ClipActions: React.FC<{ clipId: string }> = ({ clipId }) => {
     <div className="px-3 pb-3 pt-1">
       <ActionsRow>
         <DuplicateClipAction clipId={clip.id} />
+        <SplitClipAction clipId={clip.id} />
         <RemoveClipAction clipId={clip.id} />
         <ClipOpacityAction clipId={clip.id} opacity={clip.opacity} />
         <ToggleClipVisibilityAction clipId={clip.id} visible={clip.visible} />
