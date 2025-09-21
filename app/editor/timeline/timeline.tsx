@@ -16,7 +16,17 @@ export const Timeline: React.FC<{ scrollContainer?: HTMLElement | null }> = ({ s
   
   const { isDragging, handleStartDrag } = useTimelineDrag();
   const { handleSelectClip } = useTimelineSelection();
-  const { DndProvider } = useTimelineDnd({ pixelsPerSecond: snapshot.timelineZoom, scrollContainer });
+  const { 
+    DndProvider, 
+    dragHandlers, 
+    dragState, 
+    setTimelineRef,
+    setStartPosition,
+    activeId,
+  } = useTimelineDnd({ 
+    pixelsPerSecond: snapshot.timelineZoom, 
+    scrollContainer 
+  });
   
   const timelineWidth = Math.max(1000, snapshot.totalDuration * snapshot.timelineZoom);
   const timelineHeight = 32 + (snapshot.tracks.length * 60); // Ruler + tracks
@@ -25,6 +35,18 @@ export const Timeline: React.FC<{ scrollContainer?: HTMLElement | null }> = ({ s
   useScrollSyncedPlayhead(timelineRef);
   // Enable pinch zoom on touch devices
   useTimelinePinchZoom(timelineRef);
+
+  // Set timeline ref for drag system
+  React.useEffect(() => {
+    if (timelineRef.current) {
+      setTimelineRef(timelineRef.current);
+    }
+  }, [setTimelineRef]);
+
+  const handleCustomDragStart = (clipId: string, trackId: string, pointerOffsetX: number, startX: number, startY: number) => {
+    dragHandlers.onDragStart(clipId, trackId, pointerOffsetX);
+    setStartPosition(startX, startY);
+  };
 
   
   return (
@@ -58,6 +80,9 @@ export const Timeline: React.FC<{ scrollContainer?: HTMLElement | null }> = ({ s
               timelineWidth={timelineWidth}
               onSelectClip={handleSelectClip}
               onStartDrag={handleStartDrag}
+              onStartCustomDrag={handleCustomDragStart}
+              isHighlighted={dragState.hoveredTrackId === track.id}
+              draggedClipId={activeId}
             />
           </div>
         ))}

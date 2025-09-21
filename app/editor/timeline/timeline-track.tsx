@@ -2,7 +2,6 @@ import React from 'react';
 import type { Track } from '../shared/types';
 import { TimelineClip } from './timeline-clip';
 import { editorActions } from '../shared/store';
-import { useDroppable } from '@dnd-kit/core';
 
 interface TimelineTrackProps {
   track: Readonly<Track>;
@@ -11,6 +10,9 @@ interface TimelineTrackProps {
   timelineWidth: number;
   onSelectClip: (clipId: string, append: boolean) => void;
   onStartDrag: (clipId: string, dragType: 'move' | 'trim-start' | 'trim-end', startX: number) => void;
+  onStartCustomDrag?: (clipId: string, trackId: string, pointerOffsetX: number, startX: number, startY: number) => void;
+  isHighlighted?: boolean;
+  draggedClipId?: string | null;
 }
 
 export const TimelineTrack: React.FC<TimelineTrackProps> = ({
@@ -20,16 +22,17 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
   timelineWidth,
   onSelectClip,
   onStartDrag,
+  onStartCustomDrag,
+  isHighlighted = false,
+  draggedClipId = null,
 }) => {
   const trackHeight = 60; // pixels
-  const { setNodeRef: setTrackRef } = useDroppable({ id: `track-${track.id}` });
-  const { setNodeRef: setTimelineRef } = useDroppable({ id: `track-timeline-${track.id}` });
   
   return (
     <div 
       className="relative"
       style={{ height: `${trackHeight}px` }}
-      ref={setTrackRef}
+      data-track-id={track.id}
     >
       {/* Track header */}
       <button
@@ -52,8 +55,15 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
           height: '100%',
           touchAction: 'manipulation',
         }}
-        ref={setTimelineRef}
+        data-track-id={track.id}
       >
+        {/* Drag highlight overlay */}
+        {isHighlighted && draggedClipId && (
+          <div 
+            className="absolute inset-0 bg-blue-500/30 border-2 border-blue-400/50 rounded-lg transition-all duration-150 pointer-events-none"
+          />
+        )}
+        
         {/* Track clips */}
         {track.clips.map(clip => (
           <TimelineClip
@@ -63,6 +73,8 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
             pixelsPerSecond={pixelsPerSecond}
             onSelect={onSelectClip}
             onStartDrag={onStartDrag}
+            onStartCustomDrag={onStartCustomDrag}
+            isDragging={draggedClipId === clip.id}
           />
         ))}
       </div>
