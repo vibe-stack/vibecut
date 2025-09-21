@@ -3,6 +3,7 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { VideoEditorRenderer } from './video-renderer';
 import { setRendererContext } from './hooks/export-context';
 import { useComposition, useFittedFrameSize } from './hooks/use-composition';
+import * as THREE from 'three';
 
 const ContextBridge: React.FC = () => {
   const { gl, scene, camera, size } = useThree();
@@ -39,6 +40,11 @@ export const VideoViewport: React.FC = () => {
           alpha: true,
           preserveDrawingBuffer: true,
           powerPreference: 'high-performance'
+        }}
+        onCreated={({ gl }) => {
+          // Ensure correct color management for video textures
+          (gl as any).outputColorSpace = (THREE as any).SRGBColorSpace;
+          (gl as any).toneMapping = THREE.NoToneMapping;
         }}
       >
 

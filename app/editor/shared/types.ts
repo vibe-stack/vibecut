@@ -57,6 +57,8 @@ export interface Clip {
    * Duration of the clip on timeline. For images it's end-start; for videos it's based on trim.
    */
   duration: number;
+  /** Per-clip playback speed for time-based media (video/audio). Affects clip duration on timeline. */
+  speed?: number; // default 1
   
   // 3D positioning for R3F
   position: THREE.Vector3; // 3D position

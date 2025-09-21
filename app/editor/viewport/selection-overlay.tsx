@@ -36,6 +36,10 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
     startH: halfHeight * 2,
   });
   const startPointer = useRef<{ x: number; y: number; distance?: number } | null>(null);
+  // Track off() callbacks for active canvas listeners per gesture
+  const moveOffRef = useRef<null | (() => void)>(null);
+  const resizeOffRef = useRef<null | (() => void)>(null);
+  const rotateOffRef = useRef<null | (() => void)>(null);
 
   const canvasEl = useMemo(() => {
     return (document.querySelector('canvas') as HTMLCanvasElement) || null;
@@ -87,8 +91,11 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
   const startH = sessionBase.current.startH;
       const w1 = startW + dx; // treat dragging right as increasing width
       const h1 = startH + dy; // dragging down increases height
-      const sx = Math.max(0.05, base.scale.x * Math.max(0.01, w1 / Math.max(0.0001, startW)));
-      const sy = Math.max(0.05, base.scale.y * Math.max(0.01, h1 / Math.max(0.0001, startH)));
+  const targetSx = base.scale.x * Math.max(0.01, w1 / Math.max(0.0001, startW));
+  const targetSy = base.scale.y * Math.max(0.01, h1 / Math.max(0.0001, startH));
+  const k = 0.25; // smoothing factor
+  const sx = Math.max(0.08, base.scale.x + (targetSx - base.scale.x) * k);
+  const sy = Math.max(0.08, base.scale.y + (targetSy - base.scale.y) * k);
       const newScale = new THREE.Vector3(sx, sy, base.scale.z);
       const w0 = startW;
       const h0 = startH;
@@ -113,10 +120,12 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
         });
       });
       off();
+      if (resizeOffRef.current === off) resizeOffRef.current = null;
       startPointer.current = null;
     };
 
     const off = addCanvasPointerListeners(onMove, onUp);
+    resizeOffRef.current = off;
   };
 
   const startRotate = (e: any) => {
@@ -148,9 +157,11 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
         editorActions.updateClip(clip.id, { rotation: final.rotation });
       });
       off();
+      if (rotateOffRef.current === off) rotateOffRef.current = null;
       startPointer.current = null;
     };
     const off = addCanvasPointerListeners(onMove, onUp);
+    rotateOffRef.current = off;
   };
 
   const startMove = (e: any) => {
@@ -193,9 +204,11 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
         editorActions.updateClip(clip.id, { position: final.position });
       });
       off();
+      if (moveOffRef.current === off) moveOffRef.current = null;
       startPointer.current = null;
     };
     const off = addCanvasPointerListeners(onMove, onUp);
+    moveOffRef.current = off;
   };
 
   // Larger handle sizes (doubled)
@@ -206,6 +219,10 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
   // Pinch-to-resize gesture on the entire selection area
   const pointerIds = useRef<number[]>([]);
   const pointers = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchCenter = useRef<{ x: number; y: number } | null>(null);
+  const moveGestureActive = useRef<boolean>(false);
+  const offPinchRef = useRef<null | (() => void)>(null);
+  
   const onAreaPointerDown = (e: any) => {
     e.stopPropagation();
     if (e.nativeEvent?.preventDefault) e.nativeEvent.preventDefault();
@@ -214,17 +231,35 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
     const pe: PointerEvent = e.nativeEvent;
     pointerIds.current.push(pe.pointerId);
     pointers.current.set(pe.pointerId, { x: pe.clientX, y: pe.clientY });
+    
     if (pointerIds.current.length === 1) {
-      // start move normally
+      // Start move gesture, but mark it so we can cancel if pinch starts
+      moveGestureActive.current = true;
       startMove(e);
     }
+    
     if (pointerIds.current.length === 2) {
-      // initialize pinch distance
+      // Cancel any active move gesture since we're starting pinch
+      if (moveGestureActive.current) {
+        setDragMode(null);
+        cancelTransformSession(clip.id);
+        moveGestureActive.current = false;
+        if (moveOffRef.current) { try { moveOffRef.current(); } catch {} moveOffRef.current = null; }
+      }
+      // Also ensure any resize/rotate in progress are stopped
+      if (resizeOffRef.current) { try { resizeOffRef.current(); } catch {} resizeOffRef.current = null; }
+      if (rotateOffRef.current) { try { rotateOffRef.current(); } catch {} rotateOffRef.current = null; }
+      
+      // Initialize pinch distance and center
       const [a, b] = pointerIds.current;
       const pa = pointers.current.get(a)!;
       const pb = pointers.current.get(b)!;
       const dist = Math.hypot(pb.x - pa.x, pb.y - pa.y);
-      startPointer.current = { x: 0, y: 0, distance: dist };
+      const centerX = (pa.x + pb.x) / 2;
+      const centerY = (pa.y + pb.y) / 2;
+      
+      pinchCenter.current = { x: centerX, y: centerY };
+      startPointer.current = { x: centerX, y: centerY, distance: dist };
       sessionBase.current = {
         position: clip.position.clone(),
         rotation: new THREE.Euler(clip.rotation.x, clip.rotation.y, clip.rotation.z),
@@ -233,37 +268,142 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
         startH: halfHeight * 2,
       };
       startTransformSession(clip.id, sessionBase.current);
+      setDragMode('resize'); // Set drag mode to prevent move interference
+
+      // Attach global listeners on canvas so pinch doesn't miss pointerup/move when fingers leave
+      const onPinchMove = (ev: PointerEvent) => {
+        if (offPinchRef.current == null) return; // not in a pinch session anymore
+        // Update this pointer position in the map
+        pointers.current.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+        const ids = pointerIds.current;
+        if (ids.length === 2 && startPointer.current?.distance && pinchCenter.current) {
+          const [idA, idB] = ids;
+          const pa2 = pointers.current.get(idA);
+          const pb2 = pointers.current.get(idB);
+          if (!pa2 || !pb2) return;
+          const dist2 = Math.hypot(pb2.x - pa2.x, pb2.y - pa2.y);
+
+          const startDist = Math.max(1, startPointer.current.distance);
+          const rawMul = dist2 / startDist;
+          const delta = Math.abs(rawMul - 1);
+          const deadzone = 0.04;
+          let mul = 1;
+          if (delta > deadzone) {
+            const signed = rawMul >= 1 ? 1 : -1;
+            const adj = Math.log2(1 + (delta - deadzone) * 1.2) * 0.6;
+            mul = 1 + signed * adj;
+          }
+          const scaleMul = Math.max(0.5, Math.min(2.0, mul));
+          const base = sessionBase.current;
+          const newScale = new THREE.Vector3(
+            Math.max(0.05, base.scale.x * scaleMul),
+            Math.max(0.05, base.scale.y * scaleMul),
+            base.scale.z
+          );
+          updateTransientTransform(clip.id, { scale: newScale, position: base.position });
+        }
+      };
+
+      const onPinchUp = (ev: PointerEvent) => {
+        // Remove this pointer
+        const idx2 = pointerIds.current.indexOf(ev.pointerId);
+        if (idx2 >= 0) pointerIds.current.splice(idx2, 1);
+        pointers.current.delete(ev.pointerId);
+
+        // When we drop below 2 pointers, pinch has ended; commit immediately
+        if (pointerIds.current.length < 2) {
+          if (dragMode) setDragMode(null);
+          pinchCenter.current = null;
+          const off = offPinchRef.current;
+          offPinchRef.current = null;
+          if (off) off();
+          commitTransformSession(clip.id, (final) => {
+            if (!final) return;
+            editorActions.updateClip(clip.id, { position: final.position, scale: final.scale, rotation: final.rotation });
+          });
+          startPointer.current = null;
+        }
+      };
+      offPinchRef.current = addCanvasPointerListeners(onPinchMove, onPinchUp);
     }
   };
   const onAreaPointerMove = (e: any) => {
     const pe: PointerEvent = e.nativeEvent;
     if (!pointerIds.current.includes(pe.pointerId)) return;
     pointers.current.set(pe.pointerId, { x: pe.clientX, y: pe.clientY });
-    if (pointerIds.current.length === 2 && startPointer.current?.distance) {
+    if (offPinchRef.current) {
+      // Let the global pinch listeners handle this gesture
+      return;
+    }
+    
+    // Only handle pinch when we have exactly 2 pointers and pinch data
+    if (pointerIds.current.length === 2 && startPointer.current?.distance && pinchCenter.current) {
       e.stopPropagation();
       const [a, b] = pointerIds.current;
       const pa = pointers.current.get(a)!;
       const pb = pointers.current.get(b)!;
       const dist = Math.hypot(pb.x - pa.x, pb.y - pa.y);
-      const scaleMul = dist / startPointer.current.distance;
+      
+      // Calculate new center to detect any drift
+      const newCenterX = (pa.x + pb.x) / 2;
+      const newCenterY = (pa.y + pb.y) / 2;
+      
+      // Apply a deadzone and gentle curve so tiny movements don't explode scale
+      const startDist = Math.max(1, startPointer.current.distance);
+      const rawMul = dist / startDist;
+      const delta = Math.abs(rawMul - 1);
+      const deadzone = 0.04; // ignore <4% pinch changes
+      let mul = 1;
+      if (delta > deadzone) {
+        const signed = rawMul >= 1 ? 1 : -1;
+        // Map beyond-deadzone delta with a soft curve
+        const adj = Math.log2(1 + (delta - deadzone) * 1.2) * 0.6; // damped response
+        mul = 1 + signed * adj;
+      }
+      // Additional smooth damping to previous frame scale (reads current transient base)
+      const scaleMul = Math.max(0.5, Math.min(2.0, mul));
       const base = sessionBase.current;
       const newScale = new THREE.Vector3(
         Math.max(0.05, base.scale.x * scaleMul),
         Math.max(0.05, base.scale.y * scaleMul),
         base.scale.z
       );
-      // Center pivot for pinch: keep position unchanged
-      updateTransientTransform(clip.id, { scale: newScale });
+      
+      // Keep position stable - pinch should scale around center without moving the object
+      updateTransientTransform(clip.id, { scale: newScale, position: base.position });
     }
   };
+  const gestureStartTime = useRef<number>(0);
   const onAreaPointerUp = (e: any) => {
     const pe: PointerEvent = e.nativeEvent;
     const idx = pointerIds.current.indexOf(pe.pointerId);
     if (idx >= 0) pointerIds.current.splice(idx, 1);
     pointers.current.delete(pe.pointerId);
+    if (offPinchRef.current) {
+      // Pinch session is active; the global handler will commit and cleanup
+      return;
+    }
+    
+    // If we go from 2 pointers to 1, we're ending a pinch gesture - commit immediately
+    if (pointerIds.current.length === 1 && pinchCenter.current) {
+      pinchCenter.current = null;
+      setDragMode(null);
+      
+      // Commit the pinch transformation immediately
+      commitTransformSession(clip.id, (final) => {
+        if (!final) return;
+        editorActions.updateClip(clip.id, { position: final.position, scale: final.scale, rotation: final.rotation });
+      });
+      
+      // Clear the session to prevent any interference
+      startPointer.current = null;
+    }
+    
     if (pointerIds.current.length === 0) {
-      // finish any session
+      // finish any remaining session
       if (dragMode) setDragMode(null);
+      moveGestureActive.current = false;
+      pinchCenter.current = null;
       commitTransformSession(clip.id, (final) => {
         if (!final) return;
         editorActions.updateClip(clip.id, { position: final.position, scale: final.scale, rotation: final.rotation });

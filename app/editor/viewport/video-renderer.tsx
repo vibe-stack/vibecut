@@ -31,8 +31,9 @@ export const TrackLayer: React.FC<TrackLayerProps> = ({ track, currentTime }) =>
         // Calculate if this clip is active at current time
         const isActive = currentTime >= clip.start && currentTime < clip.end;
         
-        // Calculate video time if active
-        const videoTime = isActive ? clip.trimStart + (currentTime - clip.start) : 0;
+  // Calculate video time if active (per-clip speed applied in store selectors; this local is best-effort)
+  const spd = Math.max(0.1, Math.min(4, (clip as any).speed ?? 1));
+  const videoTime = isActive ? clip.trimStart + (currentTime - clip.start) * spd : 0;
         
         // Create active clip object
         const activeClip: ActiveClip = {

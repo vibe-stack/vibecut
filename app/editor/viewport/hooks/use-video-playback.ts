@@ -38,7 +38,8 @@ export const useVideoPlayback = (clip: ActiveClip, isActive: boolean) => {
       // Set up the video for playback
       const handleLoadedData = () => {
         // Set initial playback rate
-        video.playbackRate = snapshot.playback.playbackRate;
+        const perClipSpeed = (clip as any).speed ?? clip.audioEffects?.speed ?? 1;
+        video.playbackRate = Math.max(0.1, Math.min(4, (snapshot.playback.playbackRate || 1) * perClipSpeed));
         videoRef.current = video;
         // Try to grab an initial frame to populate the texture on Safari
         if (!snapshot.playback.isPlaying) {
@@ -68,6 +69,10 @@ export const useVideoPlayback = (clip: ActiveClip, isActive: boolean) => {
           texture.magFilter = THREE.LinearFilter;
           // Safari is happier with RGB for video textures
           texture.format = THREE.RGBFormat;
+          // Ensure correct color handling – most videos are encoded in sRGB
+          // Without this, the renderer will apply an extra gamma on output making it look too bright
+          // three r180+: use colorSpace instead of encoding
+          (texture as any).colorSpace = (THREE as any).SRGBColorSpace ?? (texture as any).colorSpace;
           textureRef.current = texture;
         }
       };
@@ -163,17 +168,18 @@ export const useVideoPlayback = (clip: ActiveClip, isActive: boolean) => {
     }
   }, [isActive, snapshot.playback.isPlaying, clip.id]);
 
-  // Update video playback rate when it changes
+  // Update video playback rate when it changes (combine global playbackRate with per-clip speed)
   useEffect(() => {
     if (videoRef.current) {
       const video = videoRef.current;
-      const newRate = snapshot.playback.playbackRate;
+      const perClipSpeed = (clip as any).speed ?? clip.audioEffects?.speed ?? 1;
+      const newRate = Math.max(0.1, Math.min(4, (snapshot.playback.playbackRate || 1) * perClipSpeed));
       
       if (Math.abs(video.playbackRate - newRate) > 0.01) {
         video.playbackRate = newRate;
       }
     }
-  }, [snapshot.playback.playbackRate, clip.id]);
+  }, [snapshot.playback.playbackRate, (clip as any).speed, clip.audioEffects?.speed, clip.id]);
 
   // Force update when timeline position changes (for manual seeking)
   useEffect(() => {

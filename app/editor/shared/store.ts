@@ -261,8 +261,12 @@ export const editorActions = {
     if (!asset) throw new Error(`Asset ${clipData.assetId} not found`);
 
     const id = uuidv4();
-    const duration = (asset.type === 'video' || asset.type === 'audio')
+    const baseAvDuration = (asset.type === 'video' || asset.type === 'audio')
       ? (clipData.trimEnd ? clipData.trimEnd - clipData.trimStart : (asset.duration - clipData.trimStart))
+      : undefined;
+    const effectiveSpeed = (asset.type === 'video' || asset.type === 'audio') ? (clipData as any).speed ?? 1 : 1;
+    const duration = (asset.type === 'video' || asset.type === 'audio')
+      ? Math.max(0.001, (baseAvDuration || 0) / Math.max(0.1, Math.min(4, effectiveSpeed)))
       : Math.max(0, clipData.end - clipData.start);
 
     const newClip: Clip = {
@@ -274,6 +278,7 @@ export const editorActions = {
       end: clipData.end,
       trimStart: (asset.type === 'video' || asset.type === 'audio') ? clipData.trimStart : 0,
       trimEnd: (asset.type === 'video' || asset.type === 'audio') ? clipData.trimEnd : null,
+  speed: (asset.type === 'video' || asset.type === 'audio') ? (clipData as any).speed ?? 1 : undefined,
 
       // Default values that can be overridden
       position: clipData.position || new THREE.Vector3(0, 0, 0),
@@ -338,8 +343,13 @@ export const editorActions = {
         // Recalculate duration if trim values changed
         const asset = editorStore.assets[clip.assetId];
         if (asset) {
-          if ((asset.type === 'video' || asset.type === 'audio') && ('trimStart' in updates || 'trimEnd' in updates)) {
-            clip.duration = clip.trimEnd ? clip.trimEnd - clip.trimStart : asset.duration - clip.trimStart;
+          if ((asset.type === 'video' || asset.type === 'audio') && ('trimStart' in updates || 'trimEnd' in updates || 'speed' in updates)) {
+            const srcDur = clip.trimEnd ? clip.trimEnd - clip.trimStart : (asset as any).duration - clip.trimStart;
+            const spd = Math.max(0.1, Math.min(4, updates.speed ?? clip.speed ?? 1));
+            clip.duration = Math.max(0.001, srcDur / spd);
+            // Keep start constant; adjust end to match new duration
+            clip.end = clip.start + clip.duration;
+            clip.speed = spd;
           }
           if ((asset.type === 'image' || asset.type === 'text') && ('start' in updates || 'end' in updates)) {
             clip.duration = Math.max(0, clip.end - clip.start);
@@ -349,6 +359,23 @@ export const editorActions = {
         editorActions.updateTotalDuration();
         break;
       }
+    }
+  },
+
+  /** Set per-clip playback speed for video/audio, adjusting timeline duration to compensate */
+  setClipSpeed: (clipId: string, speed: number) => {
+    const spd = Math.max(0.1, Math.min(4, speed));
+    for (const track of editorStore.tracks) {
+      const clip = track.clips.find(c => c.id === clipId);
+      if (!clip) continue;
+      const asset = editorStore.assets[clip.assetId];
+      if (!asset || (asset.type !== 'video' && asset.type !== 'audio')) return;
+      const srcDur = clip.trimEnd ? clip.trimEnd - clip.trimStart : (asset as any).duration - clip.trimStart;
+      clip.speed = spd;
+      clip.duration = Math.max(0.001, srcDur / spd);
+      clip.end = clip.start + clip.duration;
+      editorActions.updateTotalDuration();
+      break;
     }
   },
 
@@ -841,7 +868,8 @@ export const editorActions = {
         if (!clip.visible) return;
 
         if (currentTime >= clip.start && currentTime < clip.end) {
-          const videoTime = clip.trimStart + (currentTime - clip.start);
+          const spd = Math.max(0.1, Math.min(4, clip.speed ?? 1));
+          const videoTime = clip.trimStart + (currentTime - clip.start) * spd;
           activeClips.push({
             ...clip,
             videoTime,
@@ -863,7 +891,8 @@ export const editorActions = {
     editorStore.tracks.forEach(track => {
       track.clips.forEach(clip => {
         if (time >= clip.start && time < clip.end) {
-          const videoTime = clip.trimStart + (time - clip.start);
+          const spd = Math.max(0.1, Math.min(4, clip.speed ?? 1));
+          const videoTime = clip.trimStart + (time - clip.start) * spd;
           activeClips.push({
             ...clip,
             videoTime,
