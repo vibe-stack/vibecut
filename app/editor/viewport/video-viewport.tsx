@@ -1,6 +1,23 @@
 import React from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 import { VideoEditorRenderer } from './video-renderer';
+import { setRendererContext } from './hooks/export-context';
+import { useComposition, useFittedFrameSize } from './hooks/use-composition';
+
+const ContextBridge: React.FC = () => {
+  const { gl, scene, camera, size } = useThree();
+  // Publish context for export consumers
+  React.useEffect(() => {
+    console.log('Setting renderer context:', { gl: !!gl, scene: !!scene, camera: !!camera, size });
+    setRendererContext({
+      gl: gl as any,
+      scene: scene as any,
+      camera: camera as any,
+      size: { width: size.width, height: size.height, pixelRatio: gl.getPixelRatio() },
+    });
+  }, [gl, scene, camera, size.width, size.height]);
+  return null;
+};
 
 /**
  * Main video editor viewport with 3D canvas
@@ -27,6 +44,7 @@ export const VideoViewport: React.FC = () => {
       >
 
         {/* Main video renderer */}
+        <ContextBridge />
         <VideoEditorRenderer />
       </Canvas>
     </div>

@@ -1,6 +1,8 @@
 import React from 'react';
-import { Film, Upload } from 'lucide-react';
+import { Film } from 'lucide-react';
 import { CompositionSettingsDrawer } from './settings/composition-drawer';
+import { ExportSettingsDrawer } from './settings/export-drawer';
+import ExportToast from './settings/export-toast';
 
 interface HeaderBarProps {
   onHome?: () => void;
@@ -19,13 +21,18 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ onHome, onExport }) => {
         </button>
       </CompositionSettingsDrawer>
       <div className="text-sm font-medium opacity-80">VibeCut</div>
-      <button
-        aria-label="Export"
-        className="p-2 rounded-xl bg-white/5 active:bg-white/10"
-        onClick={onExport}
-      >
-        <Upload size={18} />
-      </button>
+      <div className="relative">
+        <ExportSettingsDrawer>
+          <button
+            aria-label="Export"
+            className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 active:bg-white/20 text-sm font-medium"
+            onClick={onExport}
+          >
+            Export
+          </button>
+        </ExportSettingsDrawer>
+        <ExportToast />
+      </div>
     </div>
   );
 };

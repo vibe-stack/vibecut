@@ -3,7 +3,7 @@ import { useRef, useEffect } from 'react';
 import { useSnapshot } from 'valtio';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import editorStore, { editorActions } from '../../shared/store';
+import editorStore from '../../shared/store';
 import type { ActiveClip } from '../../shared/types';
 
 export const useVideoPlayback = (clip: ActiveClip, isActive: boolean) => {
@@ -12,11 +12,11 @@ export const useVideoPlayback = (clip: ActiveClip, isActive: boolean) => {
   const materialRef = useRef<any>(null);
   const textureRef = useRef<any>(null);
 
-  const asset = snapshot.assets[clip.assetId] as any;
+  const asset: any = snapshot.assets[clip.assetId];
 
   // Set up video texture when video loads
   useEffect(() => {
-  if (asset && asset.type === 'video' && asset.loadState === 'loaded') {
+  if (asset && (asset as any).type === 'video' && asset.loadState === 'loaded') {
       // Create a unique video element for this clip to avoid conflicts
       const video = document.createElement('video');
       // Attributes must be set before src for Safari/iOS
