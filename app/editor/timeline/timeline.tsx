@@ -50,6 +50,23 @@ export const Timeline: React.FC<{ scrollContainer?: HTMLElement | null }> = ({ s
     setStartPosition(startX, startY);
   };
 
+  // Clear activation state after drag completes to prevent immediate re-drag
+  React.useEffect(() => {
+    if (!dragState.isDragging && activeId) {
+      // Give a small delay to ensure all pointer events are processed
+      const timeout = setTimeout(() => {
+        // Clear activation state on all clips
+        document.querySelectorAll('[data-clip-id]').forEach(element => {
+          const clipElement = element as any;
+          if (clipElement._clearActivation) {
+            clipElement._clearActivation();
+          }
+        });
+      }, 50);
+      return () => clearTimeout(timeout);
+    }
+  }, [dragState.isDragging, activeId]);
+
   
   return (
     <div className="bg-transparent">
@@ -78,9 +95,18 @@ export const Timeline: React.FC<{ scrollContainer?: HTMLElement | null }> = ({ s
           const asset = clip ? snapshot.assets[clip.assetId] : null;
           if (!clip || !asset) return null;
           const width = clip.duration * snapshot.timelineZoom;
-          // Left-pivot overlay (use pointerOffsetX) and include scrollLeft so ghost stays attached when scrolling
+          
+          // Calculate left position using same logic as drop calculation for consistency
           const headerWidth = 192;
-          const left = (timelineRef.current?.scrollLeft ?? 0) + (dragState.currentPosition.x - (timelineRef.current?.getBoundingClientRect().left ?? 0)) - headerWidth - dragState.pointerOffsetX;
+          const scrollLeft = timelineRef.current?.scrollLeft ?? 0;
+          const containerRect = timelineRef.current?.getBoundingClientRect();
+          let left = 0;
+          if (containerRect) {
+            // Use the same calculation as drop for perfect alignment
+            const contentX = scrollLeft + (dragState.currentPosition.x - containerRect.left) - headerWidth - dragState.pointerOffsetX;
+            left = headerWidth + contentX;
+          }
+          
           // Position vertically near the hovered track (fallback to origin clip track)
           const originTrackId = snapshot.tracks.find(t => t.clips.some(c => c.id === clip.id))?.id;
           const hoveredId = dragState.hoveredTrackId ?? originTrackId ?? snapshot.tracks[0]?.id;
@@ -89,25 +115,16 @@ export const Timeline: React.FC<{ scrollContainer?: HTMLElement | null }> = ({ s
           const bg = asset.type === 'text' ? 'bg-orange-700' : asset.type === 'image' ? 'bg-green-700' : asset.type === 'audio' ? 'bg-blue-600' : 'bg-purple-700';
           const opacity = 0.75;
           return (
-            <motion.div
+            <div
               className={`absolute h-12 rounded-xl pointer-events-none ${bg}`}
-              initial={{
-                scale: 1,
-                x: "100%",
-              }}
               style={{
                 left,
                 top,
                 width,
                 opacity,
-                // transform: 'scale(1.03)',
+                transform: 'scale(1.03)',
                 boxShadow: '0 8px 28px rgba(0,0,0,0.35)',
                 zIndex: 2000,
-              }}
-
-              animate={{
-                scale: 1.03,
-                x: "100%",
               }}
               // force rerender when scroll changes during drag
               data-scroll-tick={scrollTick}
@@ -128,6 +145,7 @@ export const Timeline: React.FC<{ scrollContainer?: HTMLElement | null }> = ({ s
               onStartCustomDrag={handleCustomDragStart}
               isHighlighted={dragState.hoveredTrackId === track.id}
               draggedClipId={activeId}
+              isGlobalDragActive={dragState.isDragging}
             />
           </div>
         ))}

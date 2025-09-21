@@ -20,6 +20,7 @@ type DragHandlers = {
     onDragStart: (clipId: string, trackId: string, pointerOffsetX: number) => void;
     onDragMove: (x: number, y: number) => void;
     onDragEnd: () => void;
+    onDragComplete?: () => void; // notify when drag fully completes
 };
 
 export interface UseTimelineDndOptions {

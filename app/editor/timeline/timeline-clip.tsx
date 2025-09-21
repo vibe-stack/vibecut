@@ -11,6 +11,7 @@ interface TimelineClipProps {
   onStartDrag: (clipId: string, dragType: 'move' | 'trim-start' | 'trim-end', startX: number) => void;
   onStartCustomDrag?: (clipId: string, trackId: string, pointerOffsetX: number, startX: number, startY: number) => void;
   isDragging?: boolean;
+  isGlobalDragActive?: boolean; // New prop to know if any drag is active globally
 }
 
 export const TimelineClip: React.FC<TimelineClipProps> = ({
@@ -21,6 +22,7 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
   onStartDrag,
   onStartCustomDrag,
   isDragging = false,
+  isGlobalDragActive = false,
 }) => {
   const snapshot = useSnapshot(editorStore);
   const isSelected = snapshot.selectedClipIds.includes(clip.id);
@@ -70,6 +72,9 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
   };
 
   const startActivation = (clientX: number, clientY: number) => {
+    // Only allow dragging selected clips
+    if (!isSelected) return;
+    
     startPosRef.current = { x: clientX, y: clientY };
     activatedRef.current = false;
     activationTimeoutRef.current = window.setTimeout(() => {
@@ -97,7 +102,7 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
   }, []);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!startPosRef.current) return;
+    if (!startPosRef.current || !isSelected) return;
     // If user moves before activation delay, activate drag immediately
     if (!activatedRef.current && movementExceeded(e.clientX, e.clientY)) {
       if (activationTimeoutRef.current) {
@@ -110,15 +115,20 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
       const pointerOffsetX = rect ? e.clientX - rect.left : 0;
       onStartCustomDrag(clip.id, track.id, pointerOffsetX, e.clientX, e.clientY);
     }
-  }, [onStartCustomDrag, track.id, clip.id]);
+  }, [onStartCustomDrag, track.id, clip.id, isSelected]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    // If global drag is active, don't handle pointer up - let global handler manage it
+    if (isGlobalDragActive) {
+      return;
+    }
+    
     // If not activated, treat as click selection
     if (!activatedRef.current) {
       handleClick(e as any as React.MouseEvent);
     }
     clearActivation();
-  }, [handleClick]);
+  }, [handleClick, isGlobalDragActive]);
 
   // Touch handling with pinch guard
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -128,7 +138,7 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
   }, []);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length > 1) return; // pinch/zoom; ignore
+    if (e.touches.length > 1 || !isSelected) return; // pinch/zoom; ignore
     const t = e.touches[0];
     if (!activatedRef.current && movementExceeded(t.clientX, t.clientY)) {
       if (activationTimeoutRef.current) {
@@ -142,17 +152,20 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
       onStartCustomDrag(clip.id, track.id, pointerOffsetX, t.clientX, t.clientY);
       // Do not preventDefault here; global touchmove in hook will handle when single touch
     }
-  }, [onStartCustomDrag, track.id, clip.id]);
+  }, [onStartCustomDrag, track.id, clip.id, isSelected]);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    // If global drag is active, don't handle touch end - let global handler manage it
+    if (isGlobalDragActive) {
+      return;
+    }
+    
     if (!activatedRef.current) {
       // select on tap
-      // fabricate a MouseEvent-like for our click handler
-      // but we can just call onSelect directly
       onSelect(clip.id, false);
     }
     clearActivation();
-  }, [onSelect, clip.id]);
+  }, [onSelect, clip.id, isGlobalDragActive]);
 
   
 
@@ -161,7 +174,13 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
 
   return (
     <div
-      ref={clipRef}
+      ref={(ref) => {
+        clipRef.current = ref;
+        // Expose clearActivation for timeline cleanup
+        if (ref) {
+          (ref as any)._clearActivation = clearActivation;
+        }
+      }}
       className={`absolute h-12 rounded-xl mt-2 cursor-pointer select-none transition-colors ${bgColor} ${isSelected ? selectedBgColor  : ''
         } ${isDragging ? 'shadow-2xl shadow-black/50' : ''}`}
       data-clip-id={clip.id}

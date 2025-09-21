@@ -13,6 +13,7 @@ interface TimelineTrackProps {
   onStartCustomDrag?: (clipId: string, trackId: string, pointerOffsetX: number, startX: number, startY: number) => void;
   isHighlighted?: boolean;
   draggedClipId?: string | null;
+  isGlobalDragActive?: boolean;
 }
 
 export const TimelineTrack: React.FC<TimelineTrackProps> = ({
@@ -25,6 +26,7 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
   onStartCustomDrag,
   isHighlighted = false,
   draggedClipId = null,
+  isGlobalDragActive = false,
 }) => {
   const trackHeight = 60; // pixels
   
@@ -75,6 +77,7 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
             onStartDrag={onStartDrag}
             onStartCustomDrag={onStartCustomDrag}
             isDragging={draggedClipId === clip.id}
+            isGlobalDragActive={isGlobalDragActive}
           />
         ))}
       </div>
