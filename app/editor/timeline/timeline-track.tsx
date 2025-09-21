@@ -60,7 +60,7 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
         {/* Drag highlight overlay */}
         {isHighlighted && draggedClipId && (
           <div 
-            className="absolute inset-0 bg-blue-500/30 border-2 border-blue-400/50 rounded-lg transition-all duration-150 pointer-events-none"
+            className="absolute inset-0 bg-zinc-500/15 border border-zinc-400/30 rounded-lg transition-all duration-150 pointer-events-none"
           />
         )}
         

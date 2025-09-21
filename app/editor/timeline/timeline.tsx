@@ -9,6 +9,7 @@ import { TimelinePlayhead } from './timeline-playhead';
 import { useScrollSyncedPlayhead } from './hooks/use-scroll-synced-playhead';
 import { useTimelinePinchZoom } from './hooks/use-timeline-pinch-zoom';
 import { useTimelineDnd } from './dnd';
+import * as motion from "motion/react-client";
 
 export const Timeline: React.FC<{ scrollContainer?: HTMLElement | null }> = ({ scrollContainer = null }) => {
   const snapshot = useSnapshot(editorStore);
@@ -23,6 +24,7 @@ export const Timeline: React.FC<{ scrollContainer?: HTMLElement | null }> = ({ s
     setTimelineRef,
     setStartPosition,
     activeId,
+    scrollTick,
   } = useTimelineDnd({ 
     pixelsPerSecond: snapshot.timelineZoom, 
     scrollContainer 
@@ -70,6 +72,49 @@ export const Timeline: React.FC<{ scrollContainer?: HTMLElement | null }> = ({ s
           timelineWidth={timelineWidth}
         />
         
+        {/* Drag overlay (follows pointer) */}
+        {activeId && dragState.isDragging && (() => {
+          const clip = snapshot.tracks.flatMap(t => t.clips).find(c => c.id === activeId);
+          const asset = clip ? snapshot.assets[clip.assetId] : null;
+          if (!clip || !asset) return null;
+          const width = clip.duration * snapshot.timelineZoom;
+          // Left-pivot overlay (use pointerOffsetX) and include scrollLeft so ghost stays attached when scrolling
+          const headerWidth = 192;
+          const left = (timelineRef.current?.scrollLeft ?? 0) + (dragState.currentPosition.x - (timelineRef.current?.getBoundingClientRect().left ?? 0)) - headerWidth - dragState.pointerOffsetX;
+          // Position vertically near the hovered track (fallback to origin clip track)
+          const originTrackId = snapshot.tracks.find(t => t.clips.some(c => c.id === clip.id))?.id;
+          const hoveredId = dragState.hoveredTrackId ?? originTrackId ?? snapshot.tracks[0]?.id;
+          const trackIndex = Math.max(0, snapshot.tracks.findIndex(t => t.id === hoveredId));
+          const top = 32 + trackIndex * 60 + 8; // within track area
+          const bg = asset.type === 'text' ? 'bg-orange-700' : asset.type === 'image' ? 'bg-green-700' : asset.type === 'audio' ? 'bg-blue-600' : 'bg-purple-700';
+          const opacity = 0.75;
+          return (
+            <motion.div
+              className={`absolute h-12 rounded-xl pointer-events-none ${bg}`}
+              initial={{
+                scale: 1,
+                left: "100%",
+              }}
+              style={{
+                left,
+                top,
+                width,
+                opacity,
+                // transform: 'scale(1.03)',
+                boxShadow: '0 8px 28px rgba(0,0,0,0.35)',
+                zIndex: 2000,
+              }}
+
+              animate={{
+                scale: 1.03,
+                left: "100%",
+              }}
+              // force rerender when scroll changes during drag
+              data-scroll-tick={scrollTick}
+            />
+          );
+        })()}
+
         {/* Tracks */}
         {snapshot.tracks.map((track, index) => (
           <div key={track.id} style={{ position: 'absolute', top: `${32 + index * 60}px` }}>

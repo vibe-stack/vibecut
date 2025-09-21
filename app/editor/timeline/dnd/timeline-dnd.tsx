@@ -13,6 +13,7 @@ type DragState = {
     currentPosition: { x: number; y: number };
     pointerOffsetX: number;
     hoveredTrackId: string | null;
+    startScrollLeft: number;
 };
 
 type DragHandlers = {
@@ -27,10 +28,10 @@ export interface UseTimelineDndOptions {
     trackSwitchThreshold?: number;
 }
 
-export const useTimelineDnd = ({ 
-    pixelsPerSecond, 
-    scrollContainer, 
-    trackSwitchThreshold = 18 
+export const useTimelineDnd = ({
+    pixelsPerSecond,
+    scrollContainer,
+    trackSwitchThreshold = 18
 }: UseTimelineDndOptions) => {
     const s = useSnapshot(editorStore);
     const [dragState, setDragState] = useState<DragState>({
@@ -41,20 +42,22 @@ export const useTimelineDnd = ({
         currentPosition: { x: 0, y: 0 },
         pointerOffsetX: 0,
         hoveredTrackId: null,
+        startScrollLeft: 0,
     });
 
     const timelineRef = useRef<HTMLElement | null>(null);
+    const [scrollTick, setScrollTick] = useState(0);
     const { update: updateAutoScroll, stop: stopAutoScroll } = useAutoscroll({
         container: scrollContainer,
-        edgeDistance: 96,
-        maxSpeed: 28,
+        edgeDistance: 45,
+        maxSpeed: 6,
         getPointer: () => dragState.currentPosition,
     });
 
     // Find which track is under the current pointer position
     const findTrackUnderPointer = useCallback((x: number, y: number): string | null => {
         if (!timelineRef.current) return null;
-        
+
         const elements = document.elementsFromPoint(x, y);
         for (const element of elements) {
             const trackElement = element.closest('[data-track-id]');
@@ -73,8 +76,9 @@ export const useTimelineDnd = ({
             originTrackId: trackId,
             pointerOffsetX,
             hoveredTrackId: trackId,
+            startScrollLeft: scrollContainer?.scrollLeft ?? 0,
         }));
-    }, []);
+    }, [scrollContainer]);
 
     const setStartPosition = useCallback((x: number, y: number) => {
         setDragState(prev => ({
@@ -88,7 +92,7 @@ export const useTimelineDnd = ({
         if (!dragState.isDragging) return;
 
         const hoveredTrackId = findTrackUnderPointer(x, y);
-        
+
         setDragState(prev => ({
             ...prev,
             currentPosition: { x, y },
@@ -109,7 +113,7 @@ export const useTimelineDnd = ({
         const clip = s.tracks
             .flatMap(t => t.clips)
             .find(c => c.id === dragState.clipId) as Clip | undefined;
-        
+
         if (!clip) {
             setDragState(prev => ({ ...prev, isDragging: false, clipId: null }));
             stopAutoScroll();
@@ -119,24 +123,29 @@ export const useTimelineDnd = ({
         // Determine target track
         const targetTrackId = dragState.hoveredTrackId || dragState.originTrackId;
         const targetTrack = s.tracks.find(t => t.id === targetTrackId) as Track | undefined;
-        
+
         if (!targetTrack || !targetTrackId) {
             setDragState(prev => ({ ...prev, isDragging: false, clipId: null }));
             stopAutoScroll();
             return;
         }
 
-        // Calculate new position based on drag delta
-        const deltaX = dragState.currentPosition.x - dragState.startPosition.x;
-        const originalPx = clip.start * pixelsPerSecond;
-        const desiredPx = originalPx + deltaX;
-        const desiredStart = Math.max(0, desiredPx / pixelsPerSecond);
+        // Calculate new position using absolute pointer mapping (more robust with autoscroll)
+        const container = scrollContainer;
+        const rect = container?.getBoundingClientRect();
+        const scrollLeft = container?.scrollLeft ?? 0;
+        const headerWidth = 192; // timeline left gutter width
+        let desiredStart = clip.start;
+        if (rect) {
+            const contentX = scrollLeft + (dragState.currentPosition.x - rect.left) - headerWidth - dragState.pointerOffsetX;
+            desiredStart = Math.max(0, contentX / pixelsPerSecond);
+        }
 
         // Find collision-free placement
         const snappedStart = findNearestFreePlacement(
-            targetTrack, 
-            desiredStart, 
-            clip.duration, 
+            targetTrack,
+            desiredStart,
+            clip.duration,
             clip.id
         );
 
@@ -147,9 +156,9 @@ export const useTimelineDnd = ({
         }
 
         // Update clip position
-        editorActions.updateClip(clip.id, { 
-            start: snappedStart, 
-            end: snappedStart + clip.duration 
+        editorActions.updateClip(clip.id, {
+            start: snappedStart,
+            end: snappedStart + clip.duration
         });
 
         // Reset drag state
@@ -161,10 +170,25 @@ export const useTimelineDnd = ({
             currentPosition: { x: 0, y: 0 },
             pointerOffsetX: 0,
             hoveredTrackId: null,
+            startScrollLeft: 0,
         });
-        
+
         stopAutoScroll();
-    }, [dragState, s.tracks, pixelsPerSecond, stopAutoScroll]);
+    }, [dragState, s.tracks, pixelsPerSecond, stopAutoScroll, scrollContainer]);
+
+    const cancelDrag = useCallback(() => {
+        setDragState({
+            isDragging: false,
+            clipId: null,
+            originTrackId: null,
+            startPosition: { x: 0, y: 0 },
+            currentPosition: { x: 0, y: 0 },
+            pointerOffsetX: 0,
+            hoveredTrackId: null,
+            startScrollLeft: 0,
+        });
+        stopAutoScroll();
+    }, [stopAutoScroll]);
 
     const dragHandlers: DragHandlers = useMemo(() => ({
         onDragStart,
@@ -185,7 +209,14 @@ export const useTimelineDnd = ({
         };
 
         const handleTouchMove = (e: TouchEvent) => {
-            e.preventDefault(); // Prevent scrolling
+            // If multi-touch, it's likely a pinch gesture; don't interfere and cancel drag
+            if (e.touches.length > 1) {
+                if (dragState.isDragging) {
+                    cancelDrag();
+                }
+                return; // don't preventDefault on multi-touch
+            }
+            e.preventDefault(); // Prevent scrolling for single-finger drag
             const touch = e.touches[0];
             if (touch) {
                 onDragMove(touch.clientX, touch.clientY);
@@ -202,13 +233,17 @@ export const useTimelineDnd = ({
         document.addEventListener('touchmove', handleTouchMove, { passive: false });
         document.addEventListener('touchend', handleTouchEnd);
 
+        const onScroll = () => setScrollTick(t => t + 1);
+        scrollContainer?.addEventListener('scroll', onScroll, { passive: true });
+
         return () => {
             document.removeEventListener('pointermove', handlePointerMove);
             document.removeEventListener('pointerup', handlePointerUp);
             document.removeEventListener('touchmove', handleTouchMove);
             document.removeEventListener('touchend', handleTouchEnd);
+            scrollContainer?.removeEventListener('scroll', onScroll as any);
         };
-    }, [dragState.isDragging, onDragMove, onDragEnd]);
+    }, [dragState.isDragging, onDragMove, onDragEnd, cancelDrag, scrollContainer]);
 
     const setTimelineRef = useCallback((ref: HTMLElement | null) => {
         timelineRef.current = ref;
@@ -227,14 +262,16 @@ export const useTimelineDnd = ({
         return <>{children}</>;
     };
 
-    return { 
-        DndProvider, 
+    return {
+        DndProvider,
         dragHandlers,
         dragState,
         setTimelineRef,
+        cancelDrag,
         setStartPosition,
         activeId: dragState.clipId,
         activeOverlayStyle,
+        scrollTick,
     };
 };
 

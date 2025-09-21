@@ -46,17 +46,9 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
     return baseStyle;
   }, [clipLeft, clipWidth, isDragging]);
 
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    if (!onStartCustomDrag) return;
-    
-    e.preventDefault();
-    e.stopPropagation();
-    
-    const rect = clipRef.current?.getBoundingClientRect();
-    const pointerOffsetX = rect ? e.clientX - rect.left : 0;
-    
-    onStartCustomDrag(clip.id, track.id, pointerOffsetX, e.clientX, e.clientY);
-  }, [clip.id, track.id, onStartCustomDrag]);
+  const activationTimeoutRef = useRef<number | null>(null);
+  const startPosRef = useRef<{x:number;y:number}|null>(null);
+  const activatedRef = useRef(false);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     console.log('Clip clicked:', clip.id, 'isDragging:', isDragging);
@@ -67,6 +59,102 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
       onSelect(clip.id, false);
     }
   }, [clip.id, onSelect, isDragging]);
+
+  const clearActivation = () => {
+    if (activationTimeoutRef.current) {
+      window.clearTimeout(activationTimeoutRef.current);
+      activationTimeoutRef.current = null;
+    }
+    activatedRef.current = false;
+    startPosRef.current = null;
+  };
+
+  const startActivation = (clientX: number, clientY: number) => {
+    startPosRef.current = { x: clientX, y: clientY };
+    activatedRef.current = false;
+    activationTimeoutRef.current = window.setTimeout(() => {
+      activatedRef.current = true;
+      if (!onStartCustomDrag) return;
+      const rect = clipRef.current?.getBoundingClientRect();
+      const pointerOffsetX = rect ? clientX - rect.left : 0;
+      onStartCustomDrag(clip.id, track.id, pointerOffsetX, clientX, clientY);
+    }, 120); // slight delay to distinguish from click
+  };
+
+  const movementExceeded = (x: number, y: number) => {
+    const start = startPosRef.current;
+    if (!start) return false;
+    const dx = Math.abs(x - start.x);
+    const dy = Math.abs(y - start.y);
+    return dx > 4 || dy > 4;
+  };
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    // If not primary touch (multi-touch), likely pinch/gesture; do nothing
+    if (e.pointerType === 'touch' && e.isPrimary === false) return;
+    e.stopPropagation();
+    startActivation(e.clientX, e.clientY);
+  }, []);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!startPosRef.current) return;
+    // If user moves before activation delay, activate drag immediately
+    if (!activatedRef.current && movementExceeded(e.clientX, e.clientY)) {
+      if (activationTimeoutRef.current) {
+        window.clearTimeout(activationTimeoutRef.current);
+        activationTimeoutRef.current = null;
+      }
+      activatedRef.current = true;
+      if (!onStartCustomDrag) return;
+      const rect = clipRef.current?.getBoundingClientRect();
+      const pointerOffsetX = rect ? e.clientX - rect.left : 0;
+      onStartCustomDrag(clip.id, track.id, pointerOffsetX, e.clientX, e.clientY);
+    }
+  }, [onStartCustomDrag, track.id, clip.id]);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    // If not activated, treat as click selection
+    if (!activatedRef.current) {
+      handleClick(e as any as React.MouseEvent);
+    }
+    clearActivation();
+  }, [handleClick]);
+
+  // Touch handling with pinch guard
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length > 1) return; // pinch/zoom; ignore
+    const t = e.touches[0];
+    startActivation(t.clientX, t.clientY);
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length > 1) return; // pinch/zoom; ignore
+    const t = e.touches[0];
+    if (!activatedRef.current && movementExceeded(t.clientX, t.clientY)) {
+      if (activationTimeoutRef.current) {
+        window.clearTimeout(activationTimeoutRef.current);
+        activationTimeoutRef.current = null;
+      }
+      activatedRef.current = true;
+      if (!onStartCustomDrag) return;
+      const rect = clipRef.current?.getBoundingClientRect();
+      const pointerOffsetX = rect ? t.clientX - rect.left : 0;
+      onStartCustomDrag(clip.id, track.id, pointerOffsetX, t.clientX, t.clientY);
+      // Do not preventDefault here; global touchmove in hook will handle when single touch
+    }
+  }, [onStartCustomDrag, track.id, clip.id]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (!activatedRef.current) {
+      // select on tap
+      // fabricate a MouseEvent-like for our click handler
+      // but we can just call onSelect directly
+      onSelect(clip.id, false);
+    }
+    clearActivation();
+  }, [onSelect, clip.id]);
+
+  
 
   const bgColor = asset.type === "text" ? "bg-orange-700 hover:bg-orange-800": asset.type === "image" ? "bg-green-700 hover:bg-green-800" : asset.type === "audio" ? "bg-blue-600 hover:bg-blue-700" : "bg-purple-700 hover:bg-purple-800";
   const selectedBgColor = asset.type === "text" ? "ring-orange-400/50": asset.type === "image" ? "ring-green-400/50" : asset.type === "audio" ? "ring-blue-400/50" : "ring-purple-400/50";
@@ -81,6 +169,11 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
       title={`${asset?.src?.split('/').pop() || 'Unknown'} (${clip.duration.toFixed(2)}s)`}
       onClick={handleClick}
       onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
       {/* Clip content */}
       <div
