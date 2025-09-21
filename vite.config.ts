@@ -7,5 +7,6 @@ export default defineConfig({
   plugins: [tailwindcss(), reactRouter(), tsconfigPaths()],
   server: {
     allowedHosts: true,
-  }
+  },
+  base: process.env.NODE_ENV === 'production' ? '/vibecut/' : '/',
 });
