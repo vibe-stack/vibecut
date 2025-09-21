@@ -173,6 +173,8 @@ export interface EditorState {
   selectedTrackIds: string[]; // Currently selected tracks
   timelineZoom: number; // Timeline zoom level (pixels per second)
   timelineOffset: number; // Timeline scroll offset (seconds)
+  /** Transient flag to indicate a pinch-zoom gesture is active */
+  isPinchZooming?: boolean;
   
   // Project metadata
   projectName: string;

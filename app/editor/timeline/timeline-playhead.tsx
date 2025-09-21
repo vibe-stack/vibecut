@@ -15,7 +15,7 @@ export const TimelinePlayhead: React.FC<TimelinePlayheadProps> = ({
   
   return (
     <div
-      className="absolute pointer-events-none z-10"
+      className="absolute pointer-events-none z-[3000]"
       style={{
         left: `${192 + x}px`, // Track header offset
         top: 0,

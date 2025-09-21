@@ -35,6 +35,7 @@ export function useTimelinePinchZoom(contentEl: RefLike) {
     startDist: number;
     startZoom: number;
     anchorContentX: number; // content x in the scroll container we want to keep fixed
+    anchorTime: number; // timeline time at anchor
   } | null>(null);
 
   useEffect(() => {
@@ -50,15 +51,20 @@ export function useTimelinePinchZoom(contentEl: RefLike) {
         // prevent scroll/zoom of the page and keep gesture in our control
         try { e.preventDefault(); } catch {}
         e.stopPropagation();
+        editorActions.setPinchZooming(true);
         const [t1, t2] = [e.touches[0], e.touches[1]];
         const dist = distance(t1, t2);
         const midX = midpointX(t1, t2);
         const contentX = scrollContainer.scrollLeft + midX; // x in scroll container coords
-        const timeAtMid = Math.max(0, (contentX - TRACK_HEADER_PX) / editorStore.timelineZoom);
+  // Always anchor to the playhead so it stays at the same time during zoom
+  const playheadContentX = TRACK_HEADER_PX + editorStore.playback.currentTime * editorStore.timelineZoom;
+  const anchorContentX = playheadContentX;
+  const timeAtAnchor = Math.max(0, (playheadContentX - TRACK_HEADER_PX) / editorStore.timelineZoom);
         stateRef.current = {
           startDist: dist,
           startZoom: editorStore.timelineZoom,
-          anchorContentX: TRACK_HEADER_PX + timeAtMid * editorStore.timelineZoom,
+          anchorContentX,
+          anchorTime: timeAtAnchor,
         };
       }
     };
@@ -69,7 +75,7 @@ export function useTimelinePinchZoom(contentEl: RefLike) {
       if (e.touches.length !== 2) return;
       try { e.preventDefault(); } catch {}
       e.stopPropagation();
-      const [t1, t2] = [e.touches[0], e.touches[1]];
+  const [t1, t2] = [e.touches[0], e.touches[1]];
       const newDist = distance(t1, t2);
       if (st.startDist <= 0) return;
       const scale = newDist / st.startDist;
@@ -79,15 +85,25 @@ export function useTimelinePinchZoom(contentEl: RefLike) {
       if (targetZoom === editorStore.timelineZoom) return;
 
       // Keep the anchor time at the same screen position by adjusting scrollLeft
-      const anchorTime = (st.anchorContentX - TRACK_HEADER_PX) / st.startZoom;
+      const anchorTime = st.anchorTime;
       editorActions.setTimelineZoom(targetZoom);
       const newAnchorContentX = TRACK_HEADER_PX + anchorTime * targetZoom;
-      const dx = newAnchorContentX - st.anchorContentX;
-      scrollContainer.scrollLeft += dx;
+      let dx = newAnchorContentX - st.anchorContentX;
+      let nextScrollLeft = scrollContainer.scrollLeft + dx;
+      // Clamp within scroll bounds to avoid iOS Safari getting stuck away from 0
+      const maxScrollLeft = Math.max(0, scrollContainer.scrollWidth - scrollContainer.clientWidth);
+      if (!Number.isFinite(nextScrollLeft)) nextScrollLeft = 0;
+      nextScrollLeft = Math.max(0, Math.min(nextScrollLeft, maxScrollLeft));
+      scrollContainer.scrollLeft = nextScrollLeft;
+      // Occasionally nudge to 0 exactly when extremely close to avoid being stuck at ~1s
+      if (nextScrollLeft < 1) {
+        scrollContainer.scrollLeft = 0;
+      }
     };
 
     const endGesture = () => {
       stateRef.current = null;
+      editorActions.setPinchZooming(false);
     };
 
     // Non-passive to allow preventDefault for iOS Safari

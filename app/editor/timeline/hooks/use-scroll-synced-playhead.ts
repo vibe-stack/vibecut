@@ -44,6 +44,7 @@ export function useScrollSyncedPlayhead(contentEl: RefLike) {
 
     const updateFromCenter = () => {
       if (editorStore.playback.isPlaying) return; // Ignore while playing
+      if ((editorStore as any).isPinchZooming) return; // Do not move time when pinch zooming
       const centerContentX = scrollContainer.scrollLeft + scrollContainer.clientWidth / 2;
       const x = centerContentX - TRACK_HEADER_PX;
       const time = x / editorStore.timelineZoom;
@@ -61,7 +62,7 @@ export function useScrollSyncedPlayhead(contentEl: RefLike) {
     window.addEventListener('resize', handleScroll);
 
     // Initialize once on mount only when idle
-    if (!editorStore.playback.isPlaying) {
+    if (!editorStore.playback.isPlaying && !(editorStore as any).isPinchZooming) {
       updateFromCenter();
     }
 
@@ -96,15 +97,17 @@ export function useScrollSyncedPlayhead(contentEl: RefLike) {
 
     const scrollContainer = getScrollParent(el);
     if (!scrollContainer) return;
-    if (editorStore.playback.isPlaying) return; // Only when idle
+  if (editorStore.playback.isPlaying) return; // Only when idle
+  if ((editorStore as any).isPinchZooming) return; // Don't fight pinch zoom adjustments
 
     const TRACK_HEADER_PX = 192;
     const targetContentX = TRACK_HEADER_PX + editorStore.playback.currentTime * editorStore.timelineZoom;
-    const desiredScrollLeft = targetContentX - scrollContainer.clientWidth / 2;
+  const desiredScrollLeft = targetContentX - scrollContainer.clientWidth / 2;
 
     // Clamp scrollLeft
     const maxScrollLeft = Math.max(0, scrollContainer.scrollWidth - scrollContainer.clientWidth);
-    const clampedScrollLeft = Math.max(0, Math.min(desiredScrollLeft, maxScrollLeft));
+  let clampedScrollLeft = Math.max(0, Math.min(desiredScrollLeft, maxScrollLeft));
+  if (clampedScrollLeft < 1) clampedScrollLeft = 0; // help iOS reach exact 0
 
     // Only adjust if meaningfully different to avoid jitter with scroll-driven updates
     if (Math.abs(scrollContainer.scrollLeft - clampedScrollLeft) > 0.5) {

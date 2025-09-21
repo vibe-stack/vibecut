@@ -150,7 +150,7 @@ export const Timeline: React.FC<{ scrollContainer?: HTMLElement | null }> = ({ s
           </div>
         ))}
         
-        {/* Playhead */}
+        {/* Playhead (ensure highest z) */}
         <TimelinePlayhead
           currentTime={snapshot.playback.currentTime}
           pixelsPerSecond={snapshot.timelineZoom}

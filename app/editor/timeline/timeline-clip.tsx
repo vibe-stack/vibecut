@@ -95,7 +95,7 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
   };
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    // If not primary touch (multi-touch), likely pinch/gesture; do nothing
+    // If not primary touch (multi-touch), likely pinch/gesture; do nothing so pinch can proceed
     if (e.pointerType === 'touch' && e.isPrimary === false) return;
     e.stopPropagation();
     startActivation(e.clientX, e.clientY);
@@ -132,7 +132,7 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
 
   // Touch handling with pinch guard
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length > 1) return; // pinch/zoom; ignore
+    if (e.touches.length > 1) return; // pinch/zoom; ignore to allow zoom
     const t = e.touches[0];
     startActivation(t.clientX, t.clientY);
   }, []);
@@ -150,7 +150,7 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
       const rect = clipRef.current?.getBoundingClientRect();
       const pointerOffsetX = rect ? t.clientX - rect.left : 0;
       onStartCustomDrag(clip.id, track.id, pointerOffsetX, t.clientX, t.clientY);
-      // Do not preventDefault here; global touchmove in hook will handle when single touch
+      // Do not preventDefault here; global touchmove in DnD hook will handle when single touch
     }
   }, [onStartCustomDrag, track.id, clip.id, isSelected]);
 

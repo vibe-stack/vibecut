@@ -843,6 +843,11 @@ export const editorActions = {
     editorStore.timelineZoom = Math.max(1, Math.min(zoom, 100));
   },
 
+  /** Internal: mark when a pinch-zoom gesture starts/ends to coordinate hooks */
+  setPinchZooming: (active: boolean) => {
+    (editorStore as any).isPinchZooming = !!active;
+  },
+
   /**
    * Seek to specific time
    */
