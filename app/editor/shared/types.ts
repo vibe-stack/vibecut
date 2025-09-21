@@ -298,6 +298,14 @@ export interface TextAnimation {
   settings?: Record<string, any>; // animation-specific parameters
 }
 
+/**
+ * Enhanced text animation with additional metadata for the new shader system
+ */
+export interface EnhancedTextAnimation extends TextAnimation {
+  priority?: number; // Priority for layering effects (higher = applied later)
+  cacheable?: boolean; // Whether this animation should be cached (for performance)
+}
+
 declare module './types' {
   // No-op module augmentation anchor if needed by consumers
 }

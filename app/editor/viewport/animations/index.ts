@@ -1,5 +1,21 @@
-import type { ActiveClip, TextAnimation } from '../../shared/types';
+// New shader-based animation system
+export * from './shader-system';
+export * from './advanced-animations';
+export * from './legacy-animations';
 
+// Legacy exports for backward compatibility
+import type { ActiveClip, TextAnimation, EnhancedTextAnimation } from '../../shared/types';
+import { 
+  shaderAnimationRegistry, 
+  computeShaderAnimations, 
+  type AnimationResult
+} from './shader-system';
+import * as THREE from 'three';
+
+/**
+ * Legacy interface for backward compatibility
+ * @deprecated Use the new shader animation system instead
+ */
 export interface TextAnimComputedProps {
   opacityMul?: number;
   positionOffset?: [number, number, number];
@@ -7,91 +23,129 @@ export interface TextAnimComputedProps {
   rotationZ?: number;
 }
 
-export type AnimationComputer = (ctx: {
-  clip: ActiveClip;
-  progress: number;
-  isPlaying: boolean;
-  settings?: Record<string, any>;
-}) => TextAnimComputedProps;
+/**
+ * Convert legacy TextAnimation to EnhancedTextAnimation
+ */
+function convertLegacyAnimation(anim: TextAnimation): EnhancedTextAnimation {
+  return {
+    key: anim.key,
+    enabled: anim.enabled,
+    settings: anim.settings || {},
+    priority: 0,
+  };
+}
 
-type AnimationRegistry = Record<string, AnimationComputer>;
-const registry: AnimationRegistry = {};
+/**
+ * Convert new AnimationResult to legacy TextAnimComputedProps for backward compatibility
+ */
+function convertToLegacyProps(result: AnimationResult): TextAnimComputedProps {
+  const legacy: TextAnimComputedProps = {};
+  
+  if (result.transform) {
+    if (typeof result.transform.opacity === 'number') {
+      legacy.opacityMul = result.transform.opacity;
+    }
+    
+    if (result.transform.position) {
+      legacy.positionOffset = [
+        result.transform.position.x,
+        result.transform.position.y,
+        result.transform.position.z
+      ];
+    }
+    
+    if (result.transform.scale) {
+      // Take the average of x and y scale for legacy compatibility
+      legacy.scaleMul = (result.transform.scale.x + result.transform.scale.y) / 2;
+    }
+    
+    if (result.transform.rotation) {
+      legacy.rotationZ = result.transform.rotation.z;
+    }
+  }
+  
+  return legacy;
+}
 
-export const registerTextAnimation = (key: string, computer: AnimationComputer) => {
-  registry[key] = computer;
-};
-
+/**
+ * Legacy animation computation function for backward compatibility
+ * @deprecated Use computeShaderAnimations instead
+ */
 export const computeTextAnimationProps = (
   clip: ActiveClip,
   animations: TextAnimation[] | undefined,
   progress: number,
   isPlaying: boolean,
 ): TextAnimComputedProps => {
-  let result: TextAnimComputedProps = { opacityMul: 1 };
-  if (!animations || animations.length === 0) return result;
-  for (const anim of animations) {
-    if (!anim.enabled) continue;
-    const comp = registry[anim.key];
-    if (!comp) continue;
-    const r = comp({ clip, progress, isPlaying, settings: anim.settings });
-    if (typeof r.opacityMul === 'number') {
-      result.opacityMul = (result.opacityMul ?? 1) * r.opacityMul;
-    }
+  if (!animations || animations.length === 0) {
+    return { opacityMul: 1 };
   }
-  return result;
+  
+  // Convert to new format
+  const enhancedAnimations = animations.map(convertLegacyAnimation);
+  
+  // Use new system
+  const result = computeShaderAnimations(clip, enhancedAnimations, {
+    progress,
+    globalTime: performance.now() / 1000, // Approximate global time
+    deltaTime: 1/60, // Approximate delta time
+    isPlaying,
+  });
+  
+  // Convert back to legacy format
+  return convertToLegacyProps(result);
 };
 
+/**
+ * Enhanced animation computation that returns full AnimationResult
+ * This is the new preferred way to compute animations
+ */
+export const computeEnhancedTextAnimations = (
+  clip: ActiveClip,
+  animations: EnhancedTextAnimation[],
+  context: {
+    progress: number;
+    globalTime: number;
+    deltaTime: number;
+    isPlaying: boolean;
+    scene?: THREE.Scene;
+    camera?: THREE.Camera;
+    renderer?: THREE.WebGLRenderer;
+  }
+): AnimationResult => {
+  return computeShaderAnimations(clip, animations, context);
+};
+
+// Legacy animation keys for backward compatibility
 export const defaultFadeInKey = 'fade-in';
 export const defaultFadeOutKey = 'fade-out';
 export const slideUpKey = 'slide-up';
 export const popBounceKey = 'pop-bounce';
 export const glitchKey = 'glitch';
 
-const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+// New animation keys
+export const waveDistortionKey = 'wave-distortion';
+export const typewriterKey = 'typewriter';
+export const advancedGlitchKey = 'advanced-glitch';
+export const hologramKey = 'hologram';
+export const energyDissolveKey = 'energy-dissolve';
+export const scaleInKey = 'scale-in';
 
-registerTextAnimation(defaultFadeInKey, ({ progress, settings }) => {
-  const portion = typeof settings?.portion === 'number' ? clamp01(settings!.portion) : 0.2;
-  const t = clamp01(progress / Math.max(0.0001, portion));
-  return { opacityMul: t };
-});
+/**
+ * Get all available animations
+ */
+export const getAllAnimations = () => shaderAnimationRegistry.getAll();
 
-registerTextAnimation(defaultFadeOutKey, ({ progress, settings }) => {
-  const portion = typeof settings?.portion === 'number' ? clamp01(settings!.portion) : 0.2;
-  const start = 1 - portion;
-  const t = progress < start ? 1 : clamp01(1 - (progress - start) / Math.max(0.0001, portion));
-  return { opacityMul: t };
-});
+/**
+ * Get animations by category
+ */
+export const getAnimationsByCategory = (category: 'transform' | 'shader' | 'hybrid') => 
+  shaderAnimationRegistry.getByCategory(category);
 
-registerTextAnimation(slideUpKey, ({ progress, settings }) => {
-  const portion = typeof settings?.portion === 'number' ? clamp01(settings!.portion) : 0.3;
-  const distance = typeof settings?.distance === 'number' ? settings!.distance : 0.5;
-  const t = clamp01(progress / Math.max(0.0001, portion));
-  const eased = 1 - Math.pow(1 - t, 3);
-  return { positionOffset: [0, -distance * (1 - eased), 0] };
-});
-
-registerTextAnimation(popBounceKey, ({ progress, settings }) => {
-  const portion = typeof settings?.portion === 'number' ? clamp01(settings!.portion) : 0.25;
-  const t = clamp01(progress / Math.max(0.0001, portion));
-  const s = 1.70158;
-  const eased = 1 + s * Math.pow(t - 1, 3) + s * Math.pow(t - 1, 2);
-  const scale = 0.8 + (eased * 0.2);
-  return { scaleMul: scale };
-});
-
-registerTextAnimation(glitchKey, ({ progress, settings }) => {
-  const strength = typeof settings?.strength === 'number' ? settings!.strength : 0.03;
-  const inWindow = progress > 0.3 && progress < 0.7;
-  if (!inWindow) return {};
-  const seed = Math.sin(progress * 123.456) * 43758.5453;
-  const rand = (v: number) => (v - Math.floor(v));
-  const r1 = rand(seed);
-  const r2 = rand(seed * 1.33);
-  const r3 = rand(seed * 2.17);
-  const dx = (r1 - 0.5) * 2 * strength;
-  const dy = (r2 - 0.5) * 2 * strength;
-  const rot = (r3 - 0.5) * 2 * 0.05;
-  return { positionOffset: [dx, dy, 0], rotationZ: rot };
-});
-
-export {};
+/**
+ * Legacy registration function (no-op, animations are auto-registered)
+ * @deprecated Use the new animation registry directly
+ */
+export const registerTextAnimation = (key: string, computer: any) => {
+  console.warn('registerTextAnimation is deprecated. Use shaderAnimationRegistry.register() instead.');
+};
