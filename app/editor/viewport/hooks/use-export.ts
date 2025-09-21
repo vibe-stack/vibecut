@@ -1,20 +1,12 @@
 /*
-  Export hook: renders the R3F scene  const renderFrameToCanvas = async (w: number, h: number, timeSec: number): Promise<HTMLCanvasElement> => {
-    // Advance playhead to desired time for deterministic render
-    editorActions.seekTo(timeSec);
-
-    const ctx = getRendererContext();
-    console.log('Getting renderer context for export:', !!ctx);
-    if (!ctx) {
-      throw new Error('Renderer context not available - this should not happen if the editor is working');
-    }en at target resolution and encodes video.
+  Export hook: renders the R3F scene offscreen at target resolution and encodes video.
   - Uses export-context to access gl, scene, camera
   - Computes composition cutout from fitted frame size
-  - Uses Mediabunny (ESM import) for encoding and audio muxing
+  - Uses MediaBunny for encoding with proper audio mixing
 */
 import { useCallback } from 'react';
 import * as THREE from 'three';
-import { getRendererContext, whenRendererReady } from './export-context';
+import { getRendererContext } from './export-context';
 import editorStore, { editorActions } from '../../shared/store';
 import { useSnapshot } from 'valtio';
 import { useFittedFrameSize, useComposition } from './use-composition';
@@ -54,47 +46,54 @@ export function useExport() {
       throw new Error('Renderer context not available - this should not happen if the editor is working');
     }
 
-  const { gl, scene, camera, size } = ctx;
-  const prevPixelRatio = gl.getPixelRatio();
-  // We'll compute the composition rect first using current DPR, then choose a DPR ensuring source >= target
-  gl.setPixelRatio(prevPixelRatio);
+    const { gl, scene, camera, size } = ctx;
+    const prevPixelRatio = gl.getPixelRatio();
+    
+    // First render the scene at normal resolution
     gl.clear(true, true, true);
     gl.render(scene, camera);
-
-    // Compute composition plane size in CSS px using current camera+viewport (mirrors useFittedFrameSize)
+    
+    // Calculate the composition bounds in the current viewport
     const cam = camera as unknown as THREE.PerspectiveCamera;
     const distance = Math.abs((cam as any).position.z || 5);
     const vH = 2 * Math.tan(((cam.fov ?? 75) * Math.PI) / 360) * distance;
     const vW = (vH * size.width) / size.height;
+    
+    // Composition dimensions in world space
     const targetAspect = aspectW / aspectH;
     const contentW = targetAspect;
     const contentH = 1;
-  // Use exact fit (no 0.98 padding) for export math
-  const scale = Math.min(vW / contentW, vH / contentH);
+    const scale = Math.min(vW / contentW, vH / contentH) * 0.98; // Match viewport padding
     const compWorldW = contentW * scale;
     const compWorldH = contentH * scale;
+    
+    // Convert to viewport pixel coordinates
     const pxPerWorldX = size.width / vW;
     const pxPerWorldY = size.height / vH;
     const compPxW = compWorldW * pxPerWorldX;
     const compPxH = compWorldH * pxPerWorldY;
-    const compPxX = Math.round((size.width - compPxW) / 2);
-    const compPxY = Math.round((size.height - compPxH) / 2);
+    const compPxX = (size.width - compPxW) / 2;
+    const compPxY = (size.height - compPxH) / 2;
 
-    // Source intrinsic pixel rect needs to be scaled by DPR
-  // Compute DPR needed so that composition crop >= target size
-  const needDprW = w / Math.max(1, compPxW);
-  const needDprH = h / Math.max(1, compPxH);
-  const neededDpr = Math.max(needDprW, needDprH, prevPixelRatio);
-  const targetDpr = Math.min(4, neededDpr);
-  gl.setPixelRatio(targetDpr);
-  gl.clear(true, true, true);
-  gl.render(scene, camera);
-  const sX = Math.max(0, Math.floor(compPxX * targetDpr));
-  const sY = Math.max(0, Math.floor(compPxY * targetDpr));
-  const sW = Math.max(1, Math.floor(compPxW * targetDpr));
-  const sH = Math.max(1, Math.floor(compPxH * targetDpr));
+    // Calculate DPR needed for high quality export
+    const neededDprW = w / compPxW;
+    const neededDprH = h / compPxH;
+    const targetDpr = Math.min(4, Math.max(2, Math.max(neededDprW, neededDprH)));
+    
+    // Re-render at higher DPR if needed
+    if (targetDpr !== prevPixelRatio) {
+      gl.setPixelRatio(targetDpr);
+      gl.clear(true, true, true);
+      gl.render(scene, camera);
+    }
+    
+    // Calculate source crop coordinates scaled by DPR
+    const sX = Math.floor(compPxX * targetDpr);
+    const sY = Math.floor(compPxY * targetDpr);
+    const sW = Math.floor(compPxW * targetDpr);
+    const sH = Math.floor(compPxH * targetDpr);
 
-  const sourceCanvas = gl.domElement;
+    const sourceCanvas = gl.domElement;
 
     const copy = document.createElement('canvas');
     copy.width = w;
@@ -121,9 +120,11 @@ export function useExport() {
     if (duration <= 0) throw new Error('Nothing to export');
 
     // Start export
-    exportActions.setPhase('preparing');    // Prefer MediaBunny if present for proper encoding + audio mux
+    exportActions.setPhase('preparing');
+
+    // Build Mediabunny pipeline
     const MB = await getMediaBunny();
-    const { Output, BufferTarget, Mp4OutputFormat, WebmOutputFormat, CanvasSource, MediaStreamAudioTrackSource } = MB;
+    const { Output, BufferTarget, Mp4OutputFormat, WebmOutputFormat, CanvasSource, AudioBufferSource } = MB;
     const useMp4 = format !== 'webm';
     const output = new Output({
       format: useMp4 ? new Mp4OutputFormat() : new WebmOutputFormat(),
@@ -141,43 +142,84 @@ export function useExport() {
     });
     output.addVideoTrack(vsrc, { frameRate: fps });
 
-    // Build audio mix stream and add as track if present
+    // Create audio source for mixed audio
+    const audioSource = new AudioBufferSource({
+      codec: useMp4 ? 'aac' : 'opus',
+      bitrate: 128_000,
+    });
+    output.addAudioTrack(audioSource);
+
+    // Build mixed audio buffers that we'll add to the audio source at precise timing
     const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
     const ac: AudioContext | null = AC ? new AC() : null;
-    const audioEls: HTMLAudioElement[] = [];
+    const audioClips: Array<{
+      audioBuffer: AudioBuffer;
+      startTime: number;
+      endTime: number;
+      volume: number;
+    }> = [];
+
+    // Pre-load and decode all audio clips
     if (ac) {
-      const dest = ac.createMediaStreamDestination();
-      snap.tracks.forEach(track => {
-        if (track.muted) return;
-        track.clips.forEach(clip => {
+      for (const track of snap.tracks) {
+        if (track.muted) continue;
+        for (const clip of track.clips) {
           const asset = snap.assets[clip.assetId] as any;
-          if (!asset) return;
+          if (!asset) continue;
           if ((asset.type === 'audio' || asset.type === 'video') && !clip.muted && (clip.volume ?? 1) > 0 && (track.volume ?? 1) > 0) {
-            const el = new Audio(asset.src);
-            el.crossOrigin = 'anonymous';
-            el.preload = 'auto';
-            el.loop = false;
-            try { el.currentTime = Math.max(0, clip.trimStart || 0); } catch {}
-            const src = ac.createMediaElementSource(el);
-            const gain = ac.createGain();
-            gain.gain.value = Math.max(0, Math.min(1, (clip.volume ?? 1) * (track.volume ?? 1)));
-            src.connect(gain).connect(dest);
-            audioEls.push(el);
+            try {
+              const response = await fetch(asset.src);
+              const arrayBuffer = await response.arrayBuffer();
+              const audioBuffer = await ac.decodeAudioData(arrayBuffer);
+              
+              audioClips.push({
+                audioBuffer,
+                startTime: clip.start,
+                endTime: clip.end,
+                volume: (clip.volume ?? 1) * (track.volume ?? 1),
+              });
+            } catch (error) {
+              console.warn('Failed to load audio clip:', asset.src, error);
+            }
           }
-        });
-      });
-      const aTrack = dest.stream.getAudioTracks()[0];
-      if (aTrack) {
-        const asrc = new MediaStreamAudioTrackSource(aTrack, { codec: useMp4 ? 'aac' : 'opus', bitrate: 128_000 });
-        output.addAudioTrack(asrc);
+        }
       }
     }
 
     await output.start();
     exportActions.setPhase('encoding');
 
-    // Start audio playback during export so there’s actual audio to capture
-    audioEls.forEach((el) => el.play().catch(()=>{}));
+    // Create mixed audio buffer and add to audio source
+    if (ac && audioClips.length > 0) {
+      // Create a buffer for the entire duration
+      const sampleRate = 48000;
+      const numChannels = 2;
+      const bufferLength = Math.ceil(duration * sampleRate);
+      const mixedBuffer = ac.createBuffer(numChannels, bufferLength, sampleRate);
+      
+      // Mix all audio clips into the buffer
+      for (const clip of audioClips) {
+        const startSample = Math.floor(clip.startTime * sampleRate);
+        const endSample = Math.floor(clip.endTime * sampleRate);
+        const clipLength = Math.min(endSample - startSample, clip.audioBuffer.length);
+        
+        for (let channel = 0; channel < numChannels; channel++) {
+          const sourceChannel = Math.min(channel, clip.audioBuffer.numberOfChannels - 1);
+          const sourceData = clip.audioBuffer.getChannelData(sourceChannel);
+          const mixedData = mixedBuffer.getChannelData(channel);
+          
+          for (let i = 0; i < clipLength; i++) {
+            const destIndex = startSample + i;
+            if (destIndex < bufferLength) {
+              mixedData[destIndex] += sourceData[i] * clip.volume;
+            }
+          }
+        }
+      }
+      
+      // Add the mixed buffer to the audio source
+      await audioSource.add(mixedBuffer);
+    }
 
     // Pump frames into CanvasSource
     const ctx2d = captureCanvas.getContext('2d');
@@ -188,12 +230,16 @@ export function useExport() {
       const frame = await renderFrameToCanvas(width, height, t);
       ctx2d.clearRect(0, 0, width, height);
       ctx2d.drawImage(frame, 0, 0);
-      vsrc.add(t, 1 / fps);
+      await vsrc.add(t, 1 / fps);
       if (i % Math.max(1, Math.round(fps / 5)) === 0) exportActions.setProgress(i / totalFrames);
       await new Promise(r => setTimeout(r, 0));
     }
 
-    audioEls.forEach(el => { try { el.pause(); } catch {} });
+    // Close audio source
+    if (audioClips.length > 0) {
+      audioSource.close();
+    }
+    
     await output.finalize();
     exportActions.setPhase('finalizing');
     const mime = output.format.mimeType;
@@ -203,9 +249,7 @@ export function useExport() {
     const url = URL.createObjectURL(blob);
     exportActions.complete(url);
     return url;
-
-    // No fallback path needed; Mediabunny handles both mp4 and webm
-  }, [snap.totalDuration, snap.tracks, snap.assets, snap.exportSettings.width, snap.exportSettings.height, snap.exportSettings.fps]);
+  }, [snap.totalDuration, snap.tracks, snap.assets, snap.exportSettings.width, snap.exportSettings.height, snap.exportSettings.fps, aspectW, aspectH]);
 
   return { exportVideo } as const;
 }

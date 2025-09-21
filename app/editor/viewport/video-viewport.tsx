@@ -8,7 +8,6 @@ const ContextBridge: React.FC = () => {
   const { gl, scene, camera, size } = useThree();
   // Publish context for export consumers
   React.useEffect(() => {
-    console.log('Setting renderer context:', { gl: !!gl, scene: !!scene, camera: !!camera, size });
     setRendererContext({
       gl: gl as any,
       scene: scene as any,
