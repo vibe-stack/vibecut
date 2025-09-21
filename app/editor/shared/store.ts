@@ -57,6 +57,12 @@ const createInitialState = (): EditorState => ({
     fps: 30,
     quality: 0.8,
   },
+  composition: {
+    aspectW: 16,
+    aspectH: 9,
+    fps: 30,
+    background: '#0b0b0f', // deep neutral
+  },
 });
 
 // Create the reactive store
@@ -730,6 +736,48 @@ export const editorActions = {
    */
   setPlaybackRate: (rate: number) => {
     editorStore.playback.playbackRate = Math.max(0.1, Math.min(rate, 4));
+  },
+
+  // === COMPOSITION ===
+  /** Set aspect ratio via numbers */
+  setAspectRatio: (w: number, h: number) => {
+    const ww = Math.max(1, Math.floor(w));
+    const hh = Math.max(1, Math.floor(h));
+    editorStore.composition.aspectW = ww;
+    editorStore.composition.aspectH = hh;
+  },
+  /** Parse "W:H" string and set */
+  setAspectRatioString: (ratio: string) => {
+    const m = ratio.trim().toLowerCase().replace(/\s+/g, '').match(/^(\d+):(\d+)$/);
+    if (!m) return false;
+    const w = parseInt(m[1], 10);
+    const h = parseInt(m[2], 10);
+    if (!w || !h) return false;
+    editorActions.setAspectRatio(w, h);
+    return true;
+  },
+  /** Set base FPS for preview and export default */
+  setBaseFps: (fps: number) => {
+    const f = Math.min(120, Math.max(1, Math.round(fps)));
+    editorStore.composition.fps = f;
+    editorStore.config.editorFps = f; // keep preview in sync
+    editorStore.exportSettings.fps = f; // default export fps follows base
+  },
+  /** Set composition background color */
+  setCompositionBackground: (hex: string) => {
+    editorStore.composition.background = hex;
+  },
+
+  /** Set export resolution and sync composition aspect */
+  setExportDimensions: (width: number, height: number) => {
+    const w = Math.max(16, Math.floor(width));
+    const h = Math.max(16, Math.floor(height));
+    editorStore.exportSettings.width = w;
+    editorStore.exportSettings.height = h;
+    // reduce to simplest aspect
+    const gcd = (a: number, b: number): number => (b === 0 ? Math.abs(a) : gcd(b, a % b));
+    const g = gcd(w, h) || 1;
+    editorActions.setAspectRatio(Math.floor(w / g), Math.floor(h / g));
   },
 
   /**

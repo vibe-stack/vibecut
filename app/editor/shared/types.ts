@@ -181,6 +181,13 @@ export interface EditorState {
     fps: number;
     quality: number; // 0-1
   };
+  /** Global composition settings applied to viewport and export defaults */
+  composition: {
+    aspectW: number; // e.g., 16
+    aspectH: number; // e.g., 9
+    fps: number; // base FPS for preview and export default
+    background: string; // hex color used for composition background
+  };
 }
 
 /**

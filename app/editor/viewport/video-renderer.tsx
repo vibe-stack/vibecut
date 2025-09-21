@@ -7,6 +7,7 @@ import type { Track, ActiveClip } from '../shared/types';
 import { VideoClip } from './video-clip';
 import { ImageClip, TextClip } from './index';
 import { useAudioPlayback } from './hooks/use-audio-playback';
+import { useComposition, useFittedFrameSize } from './hooks/use-composition';
 
 const AudioClipPlayback: React.FC<{ clip: ActiveClip; isActive: boolean }> = ({ clip, isActive }) => {
   // Hook drives audio playback; returns nothing to render
@@ -190,9 +191,17 @@ export const ClipGizmo: React.FC<ClipGizmoProps> = ({ clipId, visible = true }) 
  */
 export const VideoEditorRenderer: React.FC = () => {
   const snapshot = useSnapshot(editorStore);
+  const { background } = useComposition();
+  const { width: compW, height: compH } = useFittedFrameSize();
 
   return (
     <>
+      {/* Black matte filling the viewport (outside the composition cutout) is implied by Canvas parent background. */}
+      {/* Composition background plane (fits entirely and centered) */}
+  <mesh position={[0, 0, -0.01]} key={`comp-${compW.toFixed(3)}x${compH.toFixed(3)}`}>
+        <planeGeometry args={[compW, compH]} />
+        <meshBasicMaterial color={background} />
+      </mesh>
       <PlaybackController />
       <VideoRenderer />
       <PreviewGrid />
