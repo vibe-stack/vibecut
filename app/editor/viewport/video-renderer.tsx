@@ -180,15 +180,9 @@ export const ClipGizmo: React.FC<ClipGizmoProps> = ({ clipId, visible = true }) 
   
   if (!clip || !isSelected || !visible) return null;
 
-  return (
-    <group position={clip.position}>
-      {/* Simple wireframe box to show selection */}
-      <mesh>
-        <boxGeometry args={[0.1, 0.1, 0.1]} />
-        <meshBasicMaterial color="#ffff00" wireframe />
-      </mesh>
-    </group>
-  );
+  // Do not render the yellow wireframe box (it was causing a visible square in the center of clips).
+  // Keep the gizmo hook in place in case we want to add a less intrusive indicator later.
+  return null;
 };
 
 /**

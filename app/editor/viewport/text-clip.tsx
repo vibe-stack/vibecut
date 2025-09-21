@@ -6,6 +6,8 @@ import type { ActiveClip } from '../shared/types';
 import { Text } from '@react-three/drei';
 import { SelectionOverlay } from './selection-overlay';
 import { computeTextAnimationProps } from './animations';
+import { useTransientOrBaseTransform } from './interactions/transform-sessions';
+import { useFitToViewport } from './hooks';
 
 interface TextClipProps {
   clip: ActiveClip;
@@ -15,6 +17,11 @@ interface TextClipProps {
 export const TextClip: React.FC<TextClipProps> = ({ clip, isActive }) => {
   const snap = useSnapshot(editorStore);
   const isSelected = snap.selectedClipIds.includes(clip.id);
+  const xform = useTransientOrBaseTransform(clip.id, {
+    position: clip.position,
+    rotation: clip.rotation,
+    scale: clip.scale,
+  });
   const content = clip.textContent || 'Text';
   const style = clip.textStyle || snap.config.defaultTextStyle || { fontFamily: 'Inter', fontSize: 0.4, bold: false, italic: false, color: '#ffffff' };
 
@@ -23,10 +30,10 @@ export const TextClip: React.FC<TextClipProps> = ({ clip, isActive }) => {
   const baseH = style.fontSize;
 
   const { halfW, halfH } = useMemo(() => {
-    const w = baseW * clip.scale.x;
-    const h = baseH * clip.scale.y;
+    const w = baseW * xform.scale.x;
+    const h = baseH * xform.scale.y;
     return { halfW: w / 2, halfH: h / 2 };
-  }, [baseW, baseH, clip.scale.x, clip.scale.y]);
+  }, [baseW, baseH, xform.scale.x, xform.scale.y]);
 
   const handleSelect = (e: any) => {
     e.stopPropagation();
@@ -45,8 +52,9 @@ export const TextClip: React.FC<TextClipProps> = ({ clip, isActive }) => {
     return computeTextAnimationProps(clip, clip.textAnimations, progress, snap.playback.isPlaying);
   }, [clip, clip.textAnimations, progress, snap.playback.isPlaying]);
 
+  // For text, fitting is subjective; keep current behavior (optional future fit)
   return (
-    <group position={clip.position} rotation={clip.rotation}>
+    <group position={xform.position} rotation={xform.rotation}>
       <group visible={isActive && clip.visible && clip.track.visible}>
         <Text
           position={[
@@ -55,9 +63,9 @@ export const TextClip: React.FC<TextClipProps> = ({ clip, isActive }) => {
             (animProps.positionOffset?.[2] || 0),
           ]}
           scale={new THREE.Vector3(
-            clip.scale.x * (animProps.scaleMul ?? 1),
-            clip.scale.y * (animProps.scaleMul ?? 1),
-            clip.scale.z,
+            xform.scale.x * (animProps.scaleMul ?? 1),
+            xform.scale.y * (animProps.scaleMul ?? 1),
+            xform.scale.z,
           )}
           color={style.color}
           fontSize={style.fontSize}
@@ -65,7 +73,7 @@ export const TextClip: React.FC<TextClipProps> = ({ clip, isActive }) => {
           anchorX="center"
           anchorY="middle"
           onPointerDown={handleSelect}
-          rotation={new THREE.Euler(0, 0, (clip.rotation?.z || 0) + (animProps.rotationZ ?? 0))}
+          rotation={new THREE.Euler(0, 0, (animProps.rotationZ ?? 0))}
           material-transparent
           material-opacity={(clip.opacity ?? 1) * (animProps.opacityMul ?? 1)}
         >

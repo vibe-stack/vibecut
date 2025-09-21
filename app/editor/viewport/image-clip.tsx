@@ -5,7 +5,8 @@ import type { Mesh } from 'three';
 import editorStore, { editorActions } from '../shared/store';
 import type { ActiveClip } from '../shared/types';
 import { SelectionOverlay } from './selection-overlay';
-import { useImageMaterial } from './hooks';
+import { useImageMaterial, useFitToViewport } from './hooks';
+import { useTransientOrBaseTransform } from './interactions/transform-sessions';
 import type { ImageAsset } from '../shared/types';
 
 interface ImageClipProps {
@@ -30,6 +31,13 @@ export const ImageClip: React.FC<ImageClipProps> = ({ clip, isActive }) => {
   const planeArgs: [number, number] = [aspectRatio, 1];
 
   const isSelected = snap.selectedClipIds.includes(clip.id);
+  const xform = useTransientOrBaseTransform(clip.id, {
+    position: clip.position,
+    rotation: clip.rotation,
+    scale: clip.scale,
+  });
+
+  useFitToViewport(clip, asset);
 
   // Visibility & opacity
   useEffect(() => {
@@ -86,16 +94,16 @@ export const ImageClip: React.FC<ImageClipProps> = ({ clip, isActive }) => {
   const { halfW, halfH } = useMemo(() => {
     const baseW = planeArgs[0];
     const baseH = planeArgs[1];
-    const w = baseW * clip.scale.x;
-    const h = baseH * clip.scale.y;
+    const w = baseW * xform.scale.x;
+    const h = baseH * xform.scale.y;
     return { halfW: w / 2, halfH: h / 2 };
-  }, [clip.scale.x, clip.scale.y, planeArgs]);
+  }, [xform.scale.x, xform.scale.y, planeArgs]);
 
   return (
-    <group position={clip.position} rotation={clip.rotation}>
+    <group position={xform.position} rotation={xform.rotation}>
       <mesh
         ref={meshRef}
-        scale={clip.scale}
+        scale={xform.scale}
         visible={isActive && clip.visible && clip.track.visible}
         onPointerDown={handleSelect}
       >
