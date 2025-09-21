@@ -4,7 +4,7 @@ import '../app/app.css';
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/vibecut">
       <Routes>
         <Route path="/" element={<Home />} />
       </Routes>
