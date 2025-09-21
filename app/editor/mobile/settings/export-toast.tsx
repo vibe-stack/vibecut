@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useSnapshot } from 'valtio';
 import exportStore from '../../shared/export-store';
 import { Check } from 'lucide-react';
@@ -7,6 +7,16 @@ import { createPortal } from 'react-dom';
 export const ExportToast: React.FC = () => {
   const snap = useSnapshot(exportStore);
   const visible = snap.isExporting || snap.phase === 'done' || snap.phase === 'error';
+
+  useEffect(() => {
+    if (snap.phase === 'done' || snap.phase === 'error') {
+      const iv = setTimeout(() => {
+        exportStore.phase = 'idle';
+      }, 4000);
+      return () => clearTimeout(iv);
+    }
+  }, [snap.phase])
+
   if (!visible) return null;
 
   const isDone = snap.phase === 'done';
