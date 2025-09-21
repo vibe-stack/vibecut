@@ -13,3 +13,12 @@ body {
     color-scheme: dark;
   }
 }
+
+.no-callout {
+  -webkit-touch-callout: "none";
+  -webkit-user-select: none;
+  /* Safari */
+  -ms-user-select: none;
+  /* IE 10+ */
+  user-select: none;
+}
