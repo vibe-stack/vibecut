@@ -6,6 +6,8 @@ import { DIMENSION_PRESETS, FPS_PRESETS } from '../../viewport/hooks/use-composi
 import { useExport } from '../../viewport/hooks/use-export';
 import exportStore, { exportActions } from '../../shared/export-store';
 import ExportToast from './export-toast';
+import { Slider } from '@base-ui-components/react/slider';
+import { resolutionFromBase } from '../../shared/export-utils';
 
 interface Props { children: React.ReactNode }
 
@@ -16,6 +18,20 @@ export const ExportSettingsDrawer: React.FC<Props> = ({ children }) => {
   const [bitrate, setBitrate] = useState<number>(8000);
   const [quality, setQuality] = useState<number>(Math.round((snap.exportSettings.quality ?? 0.9) * 100));
   const [fps, setFps] = useState<number>(snap.exportSettings.fps || snap.composition.fps || 30);
+  // Discrete resolution choices
+  const RES_OPTIONS = [720, 1080, 1440, 2160] as const;
+  // Use vertical base for landscape/square (height) and width for portrait
+  const [resIndex, setResIndex] = useState<number>(() => {
+    const ar = snap.composition.aspectW / snap.composition.aspectH;
+    const base = ar >= 1 ? snap.exportSettings.height : snap.exportSettings.width;
+    let best = 0;
+    let bestDiff = Infinity;
+    RES_OPTIONS.forEach((v, i) => {
+      const d = Math.abs(v - base);
+      if (d < bestDiff) { best = i; bestDiff = d; }
+    });
+    return best;
+  });
   const [isExporting, setExporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const exportSnap = useSnapshot(exportStore);
@@ -42,9 +58,12 @@ export const ExportSettingsDrawer: React.FC<Props> = ({ children }) => {
       // Close the drawer while exporting
       setOpen(false);
 
+  const base = RES_OPTIONS[resIndex] ?? 1080;
+  const { width, height } = resolutionFromBase(base, snap.composition.aspectW, snap.composition.aspectH);
+
       const url = await exportVideo({
-        width: snap.exportSettings.width,
-        height: snap.exportSettings.height,
+        width,
+        height,
         fps,
         bitrate,
         quality: quality / 100,
@@ -88,23 +107,39 @@ export const ExportSettingsDrawer: React.FC<Props> = ({ children }) => {
                 </div>
               </div>
               <div>
-                <div className="text-sm font-medium mb-2 opacity-80">Resolution</div>
-                <div className="flex items-center gap-2">
-                  <select
-                    className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10"
-                    defaultValue=""
-                    onChange={(e) => {
-                      const preset = DIMENSION_PRESETS.find(p => p.label === e.currentTarget.value);
-                      if (preset) editorActions.setExportDimensions(preset.width, preset.height);
-                    }}
-                  >
-                    <option value="" disabled>Select preset</option>
-                    {DIMENSION_PRESETS.map(p => (
-                      <option key={p.label} value={p.label}>{p.label}</option>
-                    ))}
-                  </select>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm font-medium opacity-80">Resolution</div>
+                  <div className="text-xs opacity-60">{snap.exportSettings.width}×{snap.exportSettings.height}</div>
                 </div>
-                <div className="mt-2 text-xs opacity-70">Current: {snap.exportSettings.width}×{snap.exportSettings.height}</div>
+                <div className="py-2" data-vaul-no-drag>
+                  <Slider.Root
+                    min={0}
+                    max={RES_OPTIONS.length - 1}
+                    step={1}
+                    value={[resIndex]}
+                    onValueChange={(vals: number[]) => {
+                      const idx = Math.round(vals[0]);
+                      setResIndex(idx);
+                      const base = RES_OPTIONS[idx] ?? 1080;
+                      const { width, height } = resolutionFromBase(base, snap.composition.aspectW, snap.composition.aspectH);
+                      editorActions.setExportDimensions(width, height);
+                    }}
+                    className="w-full"
+                  >
+                    <Slider.Control className="relative h-6">
+                      <Slider.Track className="h-1.5 bg-white/10 rounded-full">
+                        <Slider.Indicator className="h-full bg-white/60 rounded-full" />
+                        <Slider.Thumb className="-mt-1.5 h-4 w-4 rounded-full bg-white shadow" />
+                      </Slider.Track>
+                    </Slider.Control>
+                  </Slider.Root>
+                  <div className="mt-2 flex justify-between text-[11px] text-white/60">
+                    <span>720p</span>
+                    <span>1080p</span>
+                    <span>1440p</span>
+                    <span>2160p</span>
+                  </div>
+                </div>
               </div>
               <div>
                 <div className="text-sm font-medium mb-2 opacity-80">Framerate</div>
@@ -116,9 +151,32 @@ export const ExportSettingsDrawer: React.FC<Props> = ({ children }) => {
                   </select>
                 </div>
               </div>
-              <div>
-                <div className="text-sm font-medium mb-2 opacity-80">Bitrate (kbps)</div>
-                <input type="number" min={500} step={500} value={bitrate} onChange={(e)=>setBitrate(parseInt(e.currentTarget.value||'0',10)||bitrate)} className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10" />
+              <div data-vaul-no-drag>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm font-medium opacity-80">Bitrate</div>
+                  <div className="text-xs opacity-60">{bitrate.toLocaleString()} kbps</div>
+                </div>
+                <Slider.Root
+                  min={1000}
+                  max={50000}
+                  step={500}
+                  value={[bitrate]}
+                  onValueChange={(vals: number[]) => setBitrate(Math.round(vals[0]))}
+                  className="w-full py-2"
+                >
+                  <Slider.Control className="relative h-6">
+                    <Slider.Track className="h-1.5 bg-white/10 rounded-full">
+                      <Slider.Indicator className="h-full bg-white/60 rounded-full" />
+                      <Slider.Thumb className="-mt-1.5 h-4 w-4 rounded-full bg-white shadow" />
+                    </Slider.Track>
+                  </Slider.Control>
+                </Slider.Root>
+                <div className="mt-2 flex justify-between text-[11px] text-white/60">
+                  <span>1 Mbps</span>
+                  <span>8 Mbps</span>
+                  <span>20 Mbps</span>
+                  <span>50 Mbps</span>
+                </div>
               </div>
               <div>
                 <div className="flex items-center justify-between mb-2">

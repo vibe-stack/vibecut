@@ -63,7 +63,8 @@ export function useExport() {
     const targetAspect = aspectW / aspectH;
     const contentW = targetAspect;
     const contentH = 1;
-    const scale = Math.min(vW / contentW, vH / contentH) * 0.98; // Match viewport padding
+  // Use exact fit (no extra padding) so the exported crop matches the on-canvas composition
+  const scale = Math.min(vW / contentW, vH / contentH);
     const compWorldW = contentW * scale;
     const compWorldH = contentH * scale;
     

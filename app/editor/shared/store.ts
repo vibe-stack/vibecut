@@ -780,6 +780,28 @@ export const editorActions = {
     editorActions.setAspectRatio(Math.floor(w / g), Math.floor(h / g));
   },
 
+  /** Set export resolution from a single base value while preserving composition aspect. */
+  setExportResolutionFromBase: (base: number) => {
+    const b = Math.max(16, Math.round(base));
+    const { aspectW, aspectH } = editorStore.composition;
+    const ar = Math.max(0.0001, aspectW / aspectH);
+    // Landscape/square -> base is height, Portrait -> base is width
+    let w: number;
+    let h: number;
+    if (ar >= 1) {
+      h = b;
+      w = Math.round(h * ar);
+    } else {
+      w = b;
+      h = Math.round(w / ar);
+    }
+    // ensure even for encoders
+    if (w % 2) w += 1;
+    if (h % 2) h += 1;
+    editorStore.exportSettings.width = w;
+    editorStore.exportSettings.height = h;
+  },
+
   /**
    * Toggle loop mode
    */

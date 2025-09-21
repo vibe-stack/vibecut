@@ -2,6 +2,7 @@ import React from 'react';
 import { useSnapshot } from 'valtio';
 import exportStore from '../../shared/export-store';
 import { Check } from 'lucide-react';
+import { createPortal } from 'react-dom';
 
 export const ExportToast: React.FC = () => {
   const snap = useSnapshot(exportStore);
@@ -11,12 +12,16 @@ export const ExportToast: React.FC = () => {
   const isDone = snap.phase === 'done';
   const isError = snap.phase === 'error';
 
-  return (
-    <div className="absolute top-full right-0 mt-2 z-50">
+  return createPortal(
+    <div className="fixed top-3 right-3 z-[100]">
       <div
         className={[
-          'min-w-[160px] max-w-[240px] px-3 py-2 rounded-xl border text-xs shadow-lg',
-          isDone ? 'bg-green-600/20 border-green-500/30 text-green-200' : isError ? 'bg-red-600/20 border-red-500/30 text-red-200' : 'bg-white/10 border-white/15 text-white/90',
+          'min-w-[180px] max-w-[280px] px-3.5 py-2.5 rounded-2xl border text-xs shadow-lg backdrop-blur supports-[backdrop-filter]:bg-black/50',
+          isDone
+            ? 'bg-green-500/15 border-green-500/30 text-green-100'
+            : isError
+            ? 'bg-red-500/15 border-red-500/30 text-red-100'
+            : 'bg-white/10 border-white/15 text-white/90',
         ].join(' ')}
       >
         {isDone ? (
@@ -29,15 +34,16 @@ export const ExportToast: React.FC = () => {
             <span>Export failed</span>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <div className="flex-1">Exporting…</div>
-            <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
-              <div className="h-full bg-white/60" style={{ width: `${Math.round((snap.progress || 0) * 100)}%` }} />
+            <div className="w-20 h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div className="h-full bg-white/70" style={{ width: `${Math.round((snap.progress || 0) * 100)}%` }} />
             </div>
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
