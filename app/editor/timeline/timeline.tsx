@@ -93,7 +93,7 @@ export const Timeline: React.FC<{ scrollContainer?: HTMLElement | null }> = ({ s
               className={`absolute h-12 rounded-xl pointer-events-none ${bg}`}
               initial={{
                 scale: 1,
-                left: "100%",
+                x: "100%",
               }}
               style={{
                 left,
@@ -107,7 +107,7 @@ export const Timeline: React.FC<{ scrollContainer?: HTMLElement | null }> = ({ s
 
               animate={{
                 scale: 1.03,
-                left: "100%",
+                x: "100%",
               }}
               // force rerender when scroll changes during drag
               data-scroll-tick={scrollTick}

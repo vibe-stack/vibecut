@@ -50,7 +50,7 @@ export const useTimelineDnd = ({
     const { update: updateAutoScroll, stop: stopAutoScroll } = useAutoscroll({
         container: scrollContainer,
         edgeDistance: 45,
-        maxSpeed: 6,
+        maxSpeed: 9,
         getPointer: () => dragState.currentPosition,
     });
 
